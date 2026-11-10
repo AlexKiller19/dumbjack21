@@ -86,6 +86,18 @@ button.target { background: #ff8a6a; } button.target.own { background: #7ee08a; 
 label { display: flex; flex-direction: column; gap: 6px; text-align: left; color: var(--gold); }
 input { background: var(--cream); border: 3px solid var(--ink); padding: 10px; font-size: 16px; line-height: 16px; color: var(--ink); text-transform: uppercase; min-width: 0; }
 #home { display: flex; flex-direction: column; gap: 12px; }
+.skin-pick { display: flex; flex-direction: column; gap: 6px; align-self: stretch; }
+.skin-label { color: var(--gold); text-align: left; }
+.skin-label b { color: var(--cream); }
+.skins { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+button.skin { padding: 4px 2px 2px; background: rgba(0,0,0,.35); border: 3px solid var(--ink); box-shadow: none; display: flex; flex-direction: column; align-items: center; gap: 2px; color: var(--cream); min-width: 0; }
+button.skin canvas { width: 40px; height: 56px; image-rendering: pixelated; }
+button.skin span { font-size: 8px; line-height: 8px; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: none; }
+button.skin.on { border-color: var(--c); background: rgba(242,193,78,.18); box-shadow: 0 0 0 2px var(--c); }
+button.skin.taken { opacity: .35; }
+button.skin.taken span { display: block; }
+button.skin:not(:disabled):hover { background: rgba(255,255,255,.08); }
+#home.invited .skin-pick { order: 1; }
 #invite { background: rgba(0,0,0,.3); border-left: 6px solid var(--gold); padding: 10px; color: var(--cream); }
 #invite b { color: var(--gold); font-size: 16px; letter-spacing: 3px; }
 #home.invited #btn-join { background: var(--gold); padding: 16px 18px; animation: glow 0.7s infinite alternate; }

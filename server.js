@@ -85,7 +85,7 @@ wss.on('connection', (ws) => {
         }
       }
       const pid = newId();
-      const err = room.game.addPlayer(pid, m.name);
+      const err = room.game.addPlayer(pid, m.name, m.skin);
       if (err) {
         if (!room.conns.size) rooms.delete(room.code);
         return send(ws, { t: 'error', msg: err });
@@ -110,6 +110,7 @@ wss.on('connection', (ws) => {
         if (pid !== room.host) err = 'Solo el anfitrión puede reiniciar';
         else err = g.backToLobby();
         break;
+      case 'skin': err = g.setSkin(pid, m.skin); break;
       case 'bet': err = g.bet(pid, m.amount, now); break;
       case 'hit': err = g.hit(pid, now); break;
       case 'stand': err = g.stand(pid, now); break;

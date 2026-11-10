@@ -1,5 +1,5 @@
 import { initAudio, sfx, toggleMusic, toggleSfx } from './audio.js';
-import { W, H, frame, setState, anim, iconCanvas, seatAt, cardAt, SEAT_COLORS, SEAT_CHARS } from './render.js';
+import { W, H, frame, setState, anim, iconCanvas, seatAt, cardAt, SKINS, skinColor, skinName, portrait } from './render.js';
 
 const $ = (id) => document.getElementById(id);
 const cv = $('cv'), g = cv.getContext('2d');
@@ -36,6 +36,41 @@ const cardLabel = (c) => c.k === 'b' ? `Granada +${c.v}` : c.k === 'v' ? `Comuni
 let ws = null, me = null, host = null, code = null, state = null, stateAt = 0;
 let selected = null; // { uid, type, targets:[{pid,h}], own:bool }
 let lastHudKey = '';
+let justJoined = false;
+
+// ---------------- personajes ----------------
+let mySkin = Number(localStorage.getItem('dj21skin'));
+if (!(mySkin >= 0 && mySkin < SKINS.length)) mySkin = Math.floor(Math.random() * SKINS.length);
+function setMySkin(s) { mySkin = s; localStorage.setItem('dj21skin', s); }
+const PORTRAITS = SKINS.map((_, i) => portrait(i));
+// Dibuja la cuadrícula de personajes. inRoom: marca los ocupados y avisa al servidor.
+function renderSkins(el, inRoom) {
+  const taken = {};
+  if (inRoom && state) for (const p of state.players) taken[p.skin] = p;
+  const meP = inRoom && state ? state.players.find(p => p.id === me) : null;
+  const sel = meP ? meP.skin : mySkin;
+  el.innerHTML = '';
+  SKINS.forEach((sk, i) => {
+    const owner = taken[i];
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'skin' + (i === sel ? ' on' : '') + (owner && owner.id !== me ? ' taken' : '');
+    b.title = sk.name + (owner && owner.id !== me ? ` (lo tiene ${owner.name})` : '');
+    b.style.setProperty('--c', sk.color);
+    const c = document.createElement('canvas'); c.width = 20; c.height = 28;
+    c.getContext('2d').drawImage(PORTRAITS[i], 0, 0);
+    b.appendChild(c);
+    const lb = document.createElement('span'); lb.textContent = owner && owner.id !== me ? owner.name : sk.name; b.appendChild(lb);
+    if (owner && owner.id !== me) b.disabled = true;
+    b.onclick = () => {
+      sfx.click(); setMySkin(i);
+      if (inRoom) send({ t: 'skin', skin: i }); else renderSkins(el, false);
+      $('skin-name').textContent = sk.name;
+    };
+    el.appendChild(b);
+  });
+  $('skin-name').textContent = SKINS[sel].name;
+}
 
 // ---------------- red ----------------
 function connect() {
@@ -47,7 +82,7 @@ function connect() {
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
     if (m.t === 'joined') {
-      me = m.you; code = m.code; host = m.host;
+      me = m.you; code = m.code; host = m.host; justJoined = true;
       const name = $('name').value || 'Forastero';
       sessionStorage.setItem('dj21', JSON.stringify({ code: m.code, token: m.token, name }));
       history.replaceState(null, '', '?sala=' + m.code);
@@ -55,6 +90,11 @@ function connect() {
       me = m.you; code = m.code; host = m.host;
       state = m.state; stateAt = performance.now();
       setState(state, me, m.events);
+      if (justJoined) {
+        justJoined = false;
+        const mine = state.players.find(p => p.id === me);
+        if (mine && mine.skin !== mySkin) { toast(`${SKINS[mySkin].name} ya estaba ocupado: te tocó ${skinName(mine)}`); setMySkin(mine.skin); }
+      }
       onEvents(m.events);
       updateUI();
     } else if (m.t === 'error') {
@@ -164,12 +204,13 @@ function renderLobby() {
   if (!state) return;
   $('room-code').textContent = code;
   $('players').innerHTML = state.players.slice().sort((a, b) => a.seat - b.seat).map(p => `
-    <li style="border-color:${SEAT_COLORS[p.seat]}">
+    <li style="border-color:${skinColor(p)}">
       <span class="who">${esc(p.name)}${p.id === me ? ' (TU)' : ''}${p.id === host ? ' 👑' : ''}</span>
-      <span class="char">${SEAT_CHARS[p.seat]}</span>
+      <span class="char">${skinName(p)}</span>
     </li>`).join('') + Array.from({ length: 4 - state.players.length }, () => `<li style="border-color:#555"><span class="who muted">Silla vacía…</span></li>`).join('');
   const isHost = me === host;
   const n = state.players.length;
+  renderSkins($('room-skins'), true);
   $('options').innerHTML = OPTS.map(o => `<div class="opt"><span>${o.label}</span>${o.values.map(v =>
     `<button class="mini${state.opts[o.key] === v ? ' on' : ''}" data-k="${o.key}" data-v="${v}" ${isHost ? '' : 'disabled'}>${o.fmt(v)}</button>`).join('')}</div>`).join('');
   $('options').querySelectorAll('button').forEach(b => b.onclick = () => { sfx.click(); send({ t: 'opt', key: b.dataset.k, value: +b.dataset.v }); });
@@ -182,11 +223,11 @@ function renderGameOver() {
   const r = state.ranking || [];
   $('ranking').innerHTML = r.map((x, i) => {
     const p = state.players.find(q => q.id === x.pid); if (!p) return '';
-    return `<li class="${i === 0 ? 'first' : ''}" style="border-color:${SEAT_COLORS[p.seat]}"><span>${i === 0 ? '👑' : (i + 1) + '.'}</span><span class="n">${esc(p.name)}${p.id === me ? ' (TU)' : ''}</span><span>$${x.chips}</span></li>`;
+    return `<li class="${i === 0 ? 'first' : ''}" style="border-color:${skinColor(p)}"><span>${i === 0 ? '👑' : (i + 1) + '.'}</span><span class="n">${esc(p.name)}${p.id === me ? ' (TU)' : ''}</span><span>$${x.chips}</span></li>`;
   }).join('');
   $('awards').innerHTML = (state.awards || []).map(a => {
     const p = state.players.find(q => q.id === a.pid); if (!p) return '';
-    return `<li><b>${a.title}</b><span style="color:${SEAT_COLORS[p.seat]}">${esc(p.name)}</span><small>${a.detail}</small></li>`;
+    return `<li><b>${a.title}</b><span style="color:${skinColor(p)}">${esc(p.name)}</span><small>${a.detail}</small></li>`;
   }).join('');
   $('awards-title').classList.toggle('hidden', !(state.awards || []).length);
   $('btn-again').classList.toggle('hidden', me !== host);
@@ -200,7 +241,7 @@ function renderHUD() {
   const cur = myTurn ? p.hands[state.turnHand] : null;
   const betTotal = p.hands.length ? p.hands.reduce((a, h) => a + h.bet, 0) : p.bet;
   const key = JSON.stringify([state.phase, state.turnId, state.turnHand, p.status, p.cards, p.chips, betTotal, p.hands.map(h => [h.cards.length, h.status, h.value]), p.canSplit, state.windowPlayed, selected && selected.uid, state.handNo, state.rescuers]);
-  $('me-info').innerHTML = `<div style="color:${SEAT_COLORS[p.seat]}">${esc(p.name)} · ${SEAT_CHARS[p.seat]}</div>
+  $('me-info').innerHTML = `<div style="color:${skinColor(p)}">${esc(p.name)} · ${skinName(p)}</div>
     <div class="big">$${p.chips}</div>
     <div>APUESTA: $${betTotal}</div>
     <div>MANO ${state.handNo}/${state.maxHands}</div>`;
@@ -268,7 +309,7 @@ function renderHUD() {
       ? `<div class="status rescue">¡ULTIMA OPORTUNIDAD!<br>Usa ARREPENTIMIENTO para salvarte <span class="timer"></span></div>`
       : `<div class="status">Ultima oportunidad para los que se pasaron… <span class="timer"></span></div>`;
   } else if (state.phase === 'turn') {
-    html = `<div class="status">Turno de <b style="color:${SEAT_COLORS[turnP ? turnP.seat : 0]}">${esc(turnP ? turnP.name : '?')}</b><br><small>Cuando pida carta podrás sabotearlo</small></div>`;
+    html = `<div class="status">Turno de <b style="color:${skinColor(turnP)}">${esc(turnP ? turnP.name : '?')}</b><br><small>Cuando pida carta podrás sabotearlo</small></div>`;
   } else if (state.phase === 'dealing') html = `<div class="status">Repartiendo…</div>`;
   else if (state.phase === 'dealer') html = `<div class="status">El dealer juega…</div>`;
   else if (state.phase === 'results') {
@@ -325,15 +366,16 @@ if (qs) $('code').value = qs.toUpperCase();
 setInvite(invited ? qs.toUpperCase() : null);
 if (invited) setTimeout(() => $('name').focus(), 100);
 function nameVal() { const n = $('name').value.trim() || 'Forastero'; localStorage.setItem('dj21name', n); return n; }
-$('btn-create').onclick = () => { initAudio(); sessionStorage.removeItem('dj21'); send({ t: 'create', name: nameVal() }); };
+$('btn-create').onclick = () => { initAudio(); sessionStorage.removeItem('dj21'); send({ t: 'create', name: nameVal(), skin: mySkin }); };
 $('btn-join').onclick = () => {
   initAudio();
   const c = $('code').value.trim().toUpperCase();
   if (c.length !== 4) return toast('El código tiene 4 letras');
   sessionStorage.removeItem('dj21');
-  send({ t: 'join', code: c, name: nameVal() });
+  send({ t: 'join', code: c, name: nameVal(), skin: mySkin });
 };
 $('code').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn-join').click(); });
+renderSkins($('skins'), false);
 $('name').addEventListener('keydown', e => { if (e.key === 'Enter') ($('code').value.trim().length === 4 ? $('btn-join') : $('btn-create')).click(); });
 $('btn-start').onclick = () => { initAudio(); send({ t: 'start' }); };
 $('btn-again').onclick = () => send({ t: 'again' });

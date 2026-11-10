@@ -46,6 +46,7 @@ const CFG = {
   abogadoLimit: 25,
 };
 // Opciones que el anfitrión puede cambiar en el lobby
+const SKIN_COUNT = 12; // personajes elegibles (ver SKINS en public/render.js)
 const OPTIONS = { hands: [5, 8, 12], chips: [500, 1000, 2000], chaos: [2, 3, 5] };
 
 function cardValue(c) {
@@ -143,17 +144,31 @@ class Game {
   }
 
   // ---------- lobby ----------
-  addPlayer(id, name) {
+  skinFree(skin, exceptId) {
+    return Number.isInteger(skin) && skin >= 0 && skin < SKIN_COUNT && !this.players.some(p => p.skin === skin && p.id !== exceptId);
+  }
+  addPlayer(id, name, skin) {
     if (this.phase !== 'lobby') return 'La partida ya empezó';
     if (this.players.length >= this.cfg.maxPlayers) return 'La mesa está llena';
     const used = new Set(this.players.map(p => p.seat));
     let seat = 0; while (used.has(seat)) seat++;
+    // personaje elegido; si ya está ocupado, el primero libre
+    skin = Number(skin);
+    if (!this.skinFree(skin)) { skin = 0; while (!this.skinFree(skin)) skin++; }
     this.players.push({
-      id, name: String(name || 'Forastero').slice(0, 12), seat, connected: true,
+      id, name: String(name || 'Forastero').slice(0, 12), seat, skin, connected: true,
       chips: this.opts.chips, bet: 0, hands: [], status: 'idle', inHand: false,
       actions: [], stats: newStats(),
     });
     this.ev('join', { pid: id });
+    return null;
+  }
+  setSkin(id, skin) {
+    const p = this.get(id);
+    if (!p || this.phase !== 'lobby') return 'Solo puedes cambiar de personaje en la sala, antes de empezar';
+    if (!this.skinFree(Number(skin), id)) return 'Ese personaje ya lo eligió alguien más';
+    p.skin = Number(skin);
+    this.ev('skin', { pid: id, skin: p.skin });
     return null;
   }
   setOption(key, value) {
@@ -182,6 +197,11 @@ class Game {
     if (this.phase !== 'lobby') return 'Ya empezó';
     this.players = this.players.filter(p => p.connected);
     if (this.players.length < this.cfg.minPlayers) return `Se necesitan al menos ${this.cfg.minPlayers} jugadores`;
+    // bancos al azar en cada partida, sin importar el orden en que entraron
+    const seats = [0, 1, 2, 3];
+    for (let i = seats.length - 1; i > 0; i--) { const j = Math.floor(this.rng() * (i + 1)); [seats[i], seats[j]] = [seats[j], seats[i]]; }
+    this.players.forEach((p, i) => { p.seat = seats[i]; });
+    this.ev('seats');
     for (const p of this.players) {
       p.chips = this.opts.chips;
       p.status = 'idle';
@@ -719,7 +739,7 @@ class Game {
         value: this.dealer.hidden ? null : handValue(this.dealer.hand).v,
       },
       players: this.players.map(p => ({
-        id: p.id, name: p.name, seat: p.seat, connected: p.connected,
+        id: p.id, name: p.name, seat: p.seat, skin: p.skin, connected: p.connected,
         chips: p.chips, bet: p.bet, status: p.status, inHand: p.inHand,
         hands: p.hands.map(hd => ({ cards: hd.cards, bet: hd.bet, status: hd.status, value: handValue(hd.cards).v, limit: hd.limit, doubled: hd.doubled })),
         canSplit: p.id === viewerId && this.myTurn(p.id) && this.canSplit(p, this.curHand()),

@@ -14,6 +14,7 @@ function setup(hands = {}, actions = {}) {
   let t = 0;
   for (const id of ['A', 'B', 'X']) g.addPlayer(id, id);
   g.start(t);
+  g.players.forEach((p, i) => { p.seat = i; }); // A, B, X en orden para que las pruebas sean predecibles
   for (const id of ['A', 'B', 'X']) g.bet(id, 100, t);
   t += 1000; g.tick(t); // reparte
   for (const p of g.players) {
@@ -376,4 +377,31 @@ test('Empujón en ti mismo: una carta más aunque ya te plantaste', () => {
 test('Lazo, Espejo y Carterista no se pueden usar en ti mismo', () => {
   const { g, t } = setup({}, { A: ['lazo', 'espejo', 'carterista'] });
   for (const uid of ['A0', 'A1', 'A2']) assert.match(g.play('A', uid, T('A'), t), /inválido/);
+});
+
+test('Cada quien elige personaje y no se pueden repetir', () => {
+  const g = new Game();
+  g.addPlayer('A', 'a', 5);
+  g.addPlayer('B', 'b', 5); // ocupado: le toca el primero libre
+  assert.equal(g.get('A').skin, 5);
+  assert.equal(g.get('B').skin, 0);
+  assert.match(g.setSkin('B', 5), /ya lo eligió/);
+  assert.equal(g.setSkin('B', 11), null);
+  assert.match(g.setSkin('B', 12) || '', /ya lo eligió/, 'fuera de rango');
+  g.start(0);
+  assert.match(g.setSkin('A', 3), /antes de empezar/);
+});
+
+test('Los bancos se reparten al azar en cada partida', () => {
+  const orders = new Set();
+  for (let s = 1; s <= 30; s++) {
+    let seed = s * 7919; const rng = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const g = new Game({ rng });
+    for (const id of ['A', 'B', 'C', 'D']) g.addPlayer(id, id);
+    g.start(0);
+    const seats = g.players.map(p => p.seat);
+    assert.deepEqual([...seats].sort(), [0, 1, 2, 3], 'cada quien en un banco distinto');
+    orders.add(seats.join(''));
+  }
+  assert.ok(orders.size > 5, 'el orden cambia entre partidas');
 });
