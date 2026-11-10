@@ -7,6 +7,8 @@ const { WebSocketServer } = require('ws');
 const { Game } = require('./game');
 
 const PORT = Number(process.env.PORT) || 8767;
+// DJ21_FAST=1 acorta las pausas entre fases (solo para pruebas automáticas)
+const GAME_CFG = process.env.DJ21_FAST ? { dealTime: 400, dealerStep: 250, resultsTime: 800, betTime: 6000, turnTime: 8000 } : {};
 const PUBLIC = path.join(__dirname, 'public');
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -64,7 +66,7 @@ function onMessage(ws, raw) {
     if (ws.room) return;
     let room;
     if (m.t === 'create') {
-      room = { code: newCode(), game: new Game(), conns: new Map(), tokens: new Map(), host: null };
+      room = { code: newCode(), game: new Game({ cfg: GAME_CFG }), conns: new Map(), tokens: new Map(), host: null };
       rooms.set(room.code, room);
     } else {
       room = rooms.get(String(m.code || '').toUpperCase().trim());

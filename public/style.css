@@ -22,6 +22,21 @@ small { font-size: 8px; opacity: .8; }
 #cv { image-rendering: pixelated; image-rendering: crisp-edges; display: block; box-shadow: 0 0 0 4px var(--wood), 0 0 0 8px var(--wood2), 0 10px 40px #000; cursor: default; flex: none; }
 #cv.targeting { cursor: crosshair; }
 
+/* historial de jugadas */
+#log-panel { position: absolute; right: 8px; top: 8px; bottom: 8px; width: 300px; z-index: 6; display: flex; flex-direction: column;
+  background: linear-gradient(#4a2812, #33190a); border: 3px solid var(--ink); box-shadow: inset 0 0 0 2px var(--wood3), 4px 4px 0 #000; }
+.log-head { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; color: var(--gold); border-bottom: 2px solid var(--wood3); }
+.log-head button.mini { padding: 3px 6px; }
+#log { list-style: none; margin: 0; padding: 6px 8px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+#log li { font-family: var(--font), 'Apple Symbols', 'Segoe UI Symbol', sans-serif; line-height: 12px; padding-left: 6px; border-left: 3px solid #6a4a2a; color: #e8d5a8; overflow-wrap: anywhere; }
+#log li.k-hand { color: var(--gold); border-color: var(--gold); margin-top: 6px; }
+#log li.k-card { color: #d3b0ff; border-color: var(--purple); }
+#log li.k-bad { color: #ff9a8a; border-color: var(--red); }
+#log li.k-good { color: #9be8a4; border-color: var(--green); }
+#log li.k-dealer { color: #9fd4ff; border-color: #5aa9e6; }
+#log li.me { background: rgba(255,255,255,.07); }
+body.log-docked #stage { padding-right: 316px; }
+#btn-log.unread { background: var(--gold); color: var(--ink); }
 #toast { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: var(--red); color: #fff; padding: 8px 16px; max-width: 90%;
   border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 5; text-align: center; }
 #toast.show { opacity: 1; }
@@ -61,7 +76,7 @@ small { font-size: 8px; opacity: .8; }
 #controls .status.chaos { color: #ff5a4a; } #controls .status.rescue { color: #7ee08a; }
 #controls .row { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
 
-button { cursor: pointer; border: 3px solid var(--ink); background: var(--gold); color: var(--ink); padding: 10px 12px; font-size: 8px; line-height: 12px; box-shadow: 3px 3px 0 #000; }
+button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; cursor: pointer; border: 3px solid var(--ink); background: var(--gold); color: var(--ink); padding: 10px 12px; font-size: 8px; line-height: 12px; box-shadow: 3px 3px 0 #000; }
 button:hover { filter: brightness(1.12); }
 button:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
 button:disabled { opacity: .4; cursor: not-allowed; transform: none; }
@@ -158,7 +173,29 @@ h3.c-agresion { color: #ff8a80; } h3.c-control { color: #d3b0ff; } h3.c-defensa 
   .acard { width: 80px; height: 100px; }
   .logo { font-size: 24px; line-height: 32px; }
 }
+/* pantallas táctiles: botones más grandes, sin zoom por doble toque, sin selección de texto */
+html.touch #hud, html.touch #topbar, html.touch .panel { -webkit-user-select: none; user-select: none; }
+html.touch #cv { touch-action: manipulation; }
+html.touch #controls button:not(.mini) { min-height: 44px; min-width: 64px; }
+html.touch #controls .row { gap: 8px; }
+html.touch .acard:hover { transform: none; }
+html.touch .acard.armed { transform: translateY(-10px); outline: 3px solid #fff; }
+html:not(.touch) #btn-full { display: none; }
+/* celular vertical: primero los botones de acción, luego las cartas, al final la info y las frases */
+@media (max-width: 900px) {
+  #controls { order: 1; } #hand-wrap { order: 2; } #hud-left { order: 3; }
+  #hud { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 1299px), (orientation: landscape) and (max-height: 520px) {
+  #log-panel { position: fixed; left: 0; right: 0; bottom: 0; top: auto; width: auto; height: 55vh; z-index: 12; padding-bottom: env(safe-area-inset-bottom); }
+}
+@media (min-width: 900px) and (max-width: 1299px) {
+  #log-panel { left: auto; right: 8px; bottom: 8px; width: 340px; height: 60vh; }
+}
 @media (max-width: 600px) and (orientation: portrait) {
+  #topbar { flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+  #topbar #roomtag { flex-basis: 100%; }
+  #topbar .spacer { display: none; }
   #rotate-hint { display: block; text-align: center; color: #b89a70; padding: 4px 12px 12px; }
 }
 /* teléfono acostado: mesa a pantalla completa y controles en columna a la derecha */
@@ -182,4 +219,6 @@ h3.c-agresion { color: #ff8a80; } h3.c-control { color: #d3b0ff; } h3.c-defensa 
   .acard .key, .acard .cat { display: none; }
   #cardinfo { min-height: 0; }
   button { padding: 8px; }
+  #app { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+  html.touch #controls button:not(.mini) { min-height: 40px; }
 }

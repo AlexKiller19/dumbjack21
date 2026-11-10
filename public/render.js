@@ -1,500 +1,35 @@
-// Render pixel art del saloon. Resolución interna baja, escalada con CSS pixelated.
+// Orquestador: recibe el estado del servidor, anima cartas y efectos y dibuja cada cuadro.
+import { C, CARD_H, CARD_W, DEALER_Y, H, SEATS, SHOE, W } from './consts.js';
+import { CARD_LINES, drawDealerSay, drawPatronSay, idleChatter, patron, say } from './dialogue.js';
+import { S } from './anim.js';
+import { TABLE, bgCanvas, buildBackground, drawBrawl, drawButter, drawCrowd, drawLamps, drawMouse, drawPianist, drawSign, drawWanted, drawWindow } from './scene.js';
+import { drawCard, drawText, textWidth } from './pixel.js';
+import { drawChar, drawDealer, drawTomb, skinColor } from './characters.js';
 import { sfx } from './audio.js';
-
-export const W = 480, H = 256;
-// x = centro del asiento, cy = borde superior de sus cartas, ay = borde superior del avatar.
-// Los asientos siguen la curva de la mesa: los de las orillas quedan más arriba.
-const SEATS = [{ x: 88, cy: 146, ay: 186 }, { x: 192, cy: 170, ay: 212 }, { x: 288, cy: 170, ay: 212 }, { x: 392, cy: 146, ay: 186 }];
-const CARD_W = 16, CARD_H = 22;
-const SHOE = { x: 322, y: 114 };
-const DEALER_Y = 120;
-
-const C = {
-  wallA: '#6b4226', wallB: '#5d381f', wallC: '#7d4f2d', dark: '#2a160c', beam: '#3d2212',
-  felt: '#1f6e47', feltD: '#185a3a', feltL: '#2d8a5a', rim: '#5b3216', rimL: '#8f5a2c', rimD: '#3a1f0d',
-  gold: '#f2c14e', cream: '#f4ecd8', red: '#d6403a', black: '#1a1014', white: '#fff8e8',
-  skin: ['#f0c39a', '#d99a6c', '#c48a5c', '#a86b45'],
-};
-
-// ---------------- fuente bitmap 3x5 ----------------
-const G = {
-  A: ['.#.', '#.#', '###', '#.#', '#.#'], B: ['##.', '#.#', '##.', '#.#', '##.'], C: ['.##', '#..', '#..', '#..', '.##'],
-  D: ['##.', '#.#', '#.#', '#.#', '##.'], E: ['###', '#..', '##.', '#..', '###'], F: ['###', '#..', '##.', '#..', '#..'],
-  G: ['.##', '#..', '#.#', '#.#', '.##'], H: ['#.#', '#.#', '###', '#.#', '#.#'], I: ['###', '.#.', '.#.', '.#.', '###'],
-  J: ['..#', '..#', '..#', '#.#', '.#.'], K: ['#.#', '#.#', '##.', '#.#', '#.#'], L: ['#..', '#..', '#..', '#..', '###'],
-  M: ['#...#', '##.##', '#.#.#', '#...#', '#...#'], N: ['#..#', '##.#', '#.##', '#..#', '#..#'], O: ['.#.', '#.#', '#.#', '#.#', '.#.'],
-  P: ['##.', '#.#', '##.', '#..', '#..'], Q: ['.#.', '#.#', '#.#', '##.', '.##'], R: ['##.', '#.#', '##.', '#.#', '#.#'],
-  S: ['.##', '#..', '.#.', '..#', '##.'], T: ['###', '.#.', '.#.', '.#.', '.#.'], U: ['#.#', '#.#', '#.#', '#.#', '###'],
-  V: ['#.#', '#.#', '#.#', '#.#', '.#.'], W: ['#...#', '#...#', '#.#.#', '##.##', '#...#'], X: ['#.#', '#.#', '.#.', '#.#', '#.#'],
-  Y: ['#.#', '#.#', '.#.', '.#.', '.#.'], Z: ['###', '..#', '.#.', '#..', '###'],
-  0: ['###', '#.#', '#.#', '#.#', '###'], 1: ['.#.', '##.', '.#.', '.#.', '###'], 2: ['##.', '..#', '.#.', '#..', '###'],
-  3: ['##.', '..#', '.#.', '..#', '##.'], 4: ['#.#', '#.#', '###', '..#', '..#'], 5: ['###', '#..', '##.', '..#', '##.'],
-  6: ['.##', '#..', '###', '#.#', '###'], 7: ['###', '..#', '.#.', '.#.', '.#.'], 8: ['###', '#.#', '###', '#.#', '###'],
-  9: ['###', '#.#', '###', '..#', '##.'],
-  '!': ['#', '#', '#', '.', '#'], '?': ['##.', '..#', '.#.', '...', '.#.'], '.': ['.', '.', '.', '.', '#'],
-  ':': ['.', '#', '.', '#', '.'], '+': ['...', '.#.', '###', '.#.', '...'], '-': ['...', '...', '###', '...', '...'],
-  '/': ['..#', '..#', '.#.', '#..', '#..'], '$': ['.##', '##.', '.#.', '.##', '##.'], '%': ['#.#', '..#', '.#.', '#..', '#.#'],
-  "'": ['#', '#', '.', '.', '.'], ',': ['.', '.', '.', '#', '#'], '(': ['.#', '#.', '#.', '#.', '.#'], ')': ['#.', '.#', '.#', '.#', '#.'],
-  '=': ['...', '###', '...', '###', '...'], '¡': ['#', '.', '#', '#', '#'], '¿': ['.#.', '...', '.#.', '#..', '.##'],
-  '*': ['...', '#.#', '.#.', '#.#', '...'], '>': ['#..', '.#.', '..#', '.#.', '#..'], '<': ['..#', '.#.', '#..', '.#.', '..#'],
-  '#': ['#.#', '###', '#.#', '###', '#.#'], '♥': ['#.#', '###', '###', '.#.', '...'],
-};
-function norm(s) { return String(s).toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/Ñ/g, 'N'); }
-export function textWidth(s, scale = 1) {
-  s = norm(s); let w = 0;
-  for (const ch of s) w += (ch === ' ' ? 2 : (G[ch] ? G[ch][0].length : 3)) + 1;
-  return Math.max(0, w - 1) * scale;
-}
-export function drawText(ctx, s, x, y, color = C.white, opt = {}) {
-  const scale = opt.scale || 1, align = opt.align || 'left';
-  s = norm(s);
-  const w = textWidth(s, scale);
-  let cx = Math.round(align === 'center' ? x - w / 2 : align === 'right' ? x - w : x);
-  y = Math.round(y);
-  const pass = (col, ox, oy) => {
-    let px = cx;
-    ctx.fillStyle = col;
-    for (const ch of s) {
-      if (ch === ' ') { px += 3 * scale; continue; }
-      const g = G[ch] || G['?'];
-      for (let r = 0; r < 5; r++) for (let c = 0; c < g[r].length; c++)
-        if (g[r][c] === '#') ctx.fillRect(px + c * scale + ox, y + r * scale + oy, scale, scale);
-      px += (g[0].length + 1) * scale;
-    }
-  };
-  if (opt.outline !== false) {
-    const oc = opt.outlineColor || C.black;
-    pass(oc, -1, 0); pass(oc, 1, 0); pass(oc, 0, -1); pass(oc, 0, 1);
-    if (opt.shadow) pass(oc, 1, 2);
-  }
-  pass(color, 0, 0);
-  return w;
-}
-
-// ---------------- sprites desde texto ----------------
-function grid(rows, pal) {
-  const c = document.createElement('canvas');
-  c.width = rows[0].length; c.height = rows.length;
-  const g = c.getContext('2d');
-  rows.forEach((r, y) => [...r].forEach((ch, x) => { if (pal[ch]) { g.fillStyle = pal[ch]; g.fillRect(x, y, 1, 1); } }));
-  return c;
-}
-const SUIT = {
-  h: grid(['.#.#.', '#####', '#####', '.###.', '..#..'], { '#': C.red }),
-  d: grid(['..#..', '.###.', '#####', '.###.', '..#..'], { '#': C.red }),
-  c: grid(['..#..', '.###.', '#.#.#', '#####', '..#..'], { '#': C.black }),
-  s: grid(['..#..', '.###.', '#####', '#####', '.#.#.'], { '#': C.black }),
-};
-const ICONS = {
-  granada5: ['....yo..', '...o....', '..#.....', '.rrrr...', 'rrrrr...', 'rkkrr...', 'rrrrr...', '.rrr....'],
-  granada10: ['...y.o..', '..o.o...', '.#.#....', 'rrrrrr..', 'rkrrkr..', 'rrrrrr..', 'rrrrrr..', '.rrrr...'],
-  amnesia: ['.wwww...', 'w....w..', '....w...', '...w....', '...w....', '........', '...w....', '........'],
-  mantequilla: ['........', '..yyyy..', '.yYYYYy.', 'yYYYYYy.', 'yyyyyyy.', '.y..y...', '....y...', '........'],
-  espejo: ['.bbbbb..', 'b.ccc.b.', 'b.c.c.b.', 'b.ccc.b.', 'b.c...b.', 'b.....b.', '.bbbbb..', '...b....'],
-  vidente: ['........', '..pppp..', '.p.ww.p.', 'p.wkkw.p', '.p.ww.p.', '..pppp..', '........', '........'],
-  comunismo: ['...y....', '...y....', 'yyyyyyy.', '.yyyyy..', '..yyy...', '.yy.yy..', 'y.....y.', '........'],
-  escudo: ['.gggggg.', 'gGGGGGGg', 'gGggggGg', 'gGgGGgGg', '.gGggGg.', '.gGGGGg.', '..gGGg..', '...gg...'],
-  carterista: ['..kkkk..', '.kwkkwk.', '.kkkkkk.', '..kkkk..', '...yy...', '..yyyy..', '.yyyyyy.', '..yyyy..'],
-  lazo: ['.oooo...', 'o....o..', 'o....o..', '.oooo...', '....o...', '.....o..', '......o.', '.......o'],
-  empujon: ['........', '...w....', '...ww...', 'wwwwwww.', 'wwwwwww.', '...ww...', '...w....', '........'],
-  carrusel: ['.cccc...', 'c....c.c', 'c.....cc', '.....ccc', 'ccc.....', 'cc.....c', 'c.c....c', '...cccc.'],
-  devolver: ['..G.....', '.GG.....', 'GGGGGG..', '.GG...G.', '..G...G.', '......G.', '..GGGG..', '........'],
-  abogado: ['r......r', 'rr....rr', '.rrrrrr.', '.r.rr.r.', '.rrrrrr.', '..r..r..', '..rrrr..', '........'],
-};
-const ICON_PAL = { y: '#ffd23f', o: '#ff7b2e', '#': '#8a6b4a', r: '#d6403a', k: '#2a1a14', w: '#f4ecd8', Y: '#fff2a8', b: '#9fd4ff', c: '#e8f6ff', p: '#b57bff', g: '#3fa34d', G: '#7ee08a' };
-const ICON_CACHE = {};
-export function iconCanvas(type) {
-  if (!ICON_CACHE[type]) ICON_CACHE[type] = grid(ICONS[type] || ICONS.amnesia, ICON_PAL);
-  return ICON_CACHE[type];
-}
-
-// ---------------- escena estática ----------------
-// Mesa de blackjack: lado recto con el dealer arriba, curva hacia el jugador.
-const TABLE = { cx: 240, top: 112, flat: 140, bottom: 250, hw: 216 };
-function tableHalf(y, inset = 0) {
-  const hw = TABLE.hw - inset;
-  if (y < TABLE.top + inset || y > TABLE.bottom - inset) return 0;
-  if (y <= TABLE.flat) return hw;
-  const k = (y - TABLE.flat) / (TABLE.bottom - inset - TABLE.flat);
-  return hw * Math.sqrt(Math.max(0, 1 - k * k));
-}
-let bgCanvas = null;
-function buildBackground() {
-  const c = document.createElement('canvas'); c.width = W; c.height = H;
-  const g = c.getContext('2d');
-  // pared de tablones
-  for (let x = 0; x < W; x += 12) {
-    g.fillStyle = (x / 12) % 3 === 0 ? C.wallA : (x / 12) % 3 === 1 ? C.wallB : C.wallC;
-    g.fillRect(x, 0, 12, 114);
-    g.fillStyle = C.dark; g.fillRect(x, 0, 1, 114);
-    g.fillStyle = 'rgba(255,220,170,0.08)'; g.fillRect(x + 1, 0, 1, 114);
-    g.fillStyle = 'rgba(0,0,0,0.12)';
-    for (let k = 0; k < 4; k++) g.fillRect(x + 3 + ((x * 7 + k * 13) % 7), (x * 3 + k * 29) % 90, 1, 6 + (k * 5) % 9);
-    g.fillStyle = '#c9a26b'; g.fillRect(x + 6, 9, 1, 1); g.fillRect(x + 6, 74, 1, 1);
-  }
-  g.fillStyle = C.beam; g.fillRect(0, 0, W, 6);
-  g.fillStyle = '#4e2c17'; g.fillRect(0, 6, W, 1);
-  g.fillStyle = C.beam; g.fillRect(0, 92, W, 4); g.fillStyle = C.rimL; g.fillRect(0, 92, W, 1);
-  for (let x = 0; x < W; x += 24) { g.fillStyle = '#4a2a15'; g.fillRect(x, 96, 24, 18); g.fillStyle = '#3a200f'; g.fillRect(x, 96, 1, 18); g.fillRect(x + 3, 99, 18, 1); g.fillRect(x + 3, 110, 18, 1); }
-  // piso de madera
-  for (let y = 114; y < H; y += 8) {
-    g.fillStyle = (y / 8) % 2 ? '#3b2110' : '#44260f'; g.fillRect(0, y, W, 8);
-    g.fillStyle = '#2a160c'; g.fillRect(0, y, W, 1);
-    for (let x = ((y * 5) % 60); x < W; x += 60) g.fillRect(x, y, 1, 8);
-  }
-  // ventana (marco)
-  g.fillStyle = C.rimD; g.fillRect(12, 16, 52, 48);
-  // estante de botellas
-  g.fillStyle = C.rimD; g.fillRect(78, 20, 84, 44);
-  g.fillStyle = '#2b1709'; g.fillRect(80, 22, 80, 40);
-  g.fillStyle = C.rimL; g.fillRect(78, 40, 84, 3); g.fillRect(78, 61, 84, 3);
-  const bottleCols = ['#3e8e4f', '#a3542a', '#6b3fa0', '#c9a227', '#2f6f8f', '#8f2f2f', '#5f8f2f'];
-  for (let i = 0; i < 11; i++) {
-    const bx = 82 + i * 7, h = 9 + (i * 5) % 6;
-    g.fillStyle = bottleCols[i % bottleCols.length];
-    g.fillRect(bx, 40 - h, 5, h); g.fillRect(bx + 1, 40 - h - 4, 3, 4);
-    g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(bx + 1, 40 - h + 1, 1, h - 3);
-  }
-  for (let i = 0; i < 9; i++) {
-    const bx = 84 + i * 8, h = 8 + (i * 3) % 7;
-    g.fillStyle = bottleCols[(i + 3) % bottleCols.length];
-    g.fillRect(bx, 61 - h, 6, h); g.fillRect(bx + 2, 61 - h - 3, 2, 3);
-    g.fillStyle = 'rgba(255,255,255,0.3)'; g.fillRect(bx + 1, 61 - h + 1, 1, h - 2);
-  }
-  // cartel central
-  g.fillStyle = C.rimD; g.fillRect(176, 8, 128, 22);
-  g.fillStyle = '#8a5a2b'; g.fillRect(178, 10, 124, 18);
-  g.fillStyle = '#a06a35'; g.fillRect(178, 10, 124, 2);
-  g.fillStyle = '#c9a26b'; g.fillRect(180, 12, 1, 1); g.fillRect(299, 12, 1, 1); g.fillRect(180, 25, 1, 1); g.fillRect(299, 25, 1, 1);
-  // cartel WANTED
-  g.fillStyle = '#e8d5a8'; g.fillRect(340, 14, 36, 46);
-  g.fillStyle = '#cdb88a'; g.fillRect(340, 58, 36, 2); g.fillRect(374, 14, 2, 46);
-  // piano
-  g.fillStyle = '#2b1709'; g.fillRect(388, 62, 84, 52);
-  g.fillStyle = '#4a2a15'; g.fillRect(390, 64, 80, 30);
-  g.fillStyle = '#3a200f'; g.fillRect(394, 68, 72, 2);
-  g.fillStyle = C.cream; g.fillRect(392, 94, 76, 6);
-  g.fillStyle = C.black; for (let k = 0; k < 15; k++) if (k % 7 !== 2 && k % 7 !== 6) g.fillRect(395 + k * 5, 94, 2, 3);
-  g.fillStyle = '#2b1709'; g.fillRect(392, 100, 76, 14);
-  g.fillStyle = '#4a2a15'; g.fillRect(396, 103, 68, 1);
-
-  // mesa: sombra, borde de madera y paño
-  for (let y = TABLE.top; y <= TABLE.bottom + 5; y++) {
-    const sh = tableHalf(y - 5); if (sh) { g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(TABLE.cx - sh, y, sh * 2, 1); }
-  }
-  for (let y = TABLE.top; y <= TABLE.bottom; y++) {
-    const hw = Math.round(tableHalf(y)), hin = Math.round(tableHalf(y, 6));
-    g.fillStyle = C.rim; g.fillRect(TABLE.cx - hw, y, hw * 2, 1);
-    g.fillStyle = C.rimL; g.fillRect(TABLE.cx - hw, y, 2, 1); if (y < TABLE.top + 2) g.fillRect(TABLE.cx - hw, y, hw * 2, 1);
-    g.fillStyle = C.rimD; g.fillRect(TABLE.cx + hw - 2, y, 2, 1);
-    if (hin > 0) {
-      g.fillStyle = C.felt; g.fillRect(TABLE.cx - hin, y, hin * 2, 1);
-      g.fillStyle = C.rimD; g.fillRect(TABLE.cx - hin - 1, y, 1, 1); g.fillRect(TABLE.cx + hin, y, 1, 1);
-    }
-  }
-  // borde inferior con relieve y textura del paño
-  for (let x = TABLE.cx - TABLE.hw; x < TABLE.cx + TABLE.hw; x++) {
-    const k = (x - TABLE.cx) / TABLE.hw;
-    const yb = Math.round(TABLE.flat + (TABLE.bottom - TABLE.flat) * Math.sqrt(Math.max(0, 1 - k * k)));
-    g.fillStyle = C.rimD; g.fillRect(x, yb - 1, 1, 2);
-  }
-  g.fillStyle = C.feltD;
-  for (let y = TABLE.top + 8; y < TABLE.bottom - 6; y += 2) {
-    const hin = tableHalf(y, 8);
-    for (let x = (y % 4); x < W; x += 4) if (Math.abs(x - TABLE.cx) < hin) g.fillRect(x, y, 1, 1);
-  }
-  // arco dorado y letreros del paño
-  g.fillStyle = 'rgba(242,193,78,0.35)';
-  for (let x = 60; x < 420; x++) {
-    const k = (x - 240) / 190;
-    g.fillRect(x, Math.round(120 + 34 * Math.sqrt(Math.max(0, 1 - k * k))), 1, 1);
-  }
-  const old = g.globalAlpha; g.globalAlpha = 0.45;
-  drawText(g, 'BLACKJACK PAGA 3 A 2', 240, 146, '#f2c14e', { align: 'center', outline: false });
-  g.globalAlpha = old;
-  // zapato de cartas
-  g.fillStyle = '#2b1709'; g.fillRect(SHOE.x - 2, SHOE.y - 2, 22, 18);
-  g.fillStyle = '#5b3216'; g.fillRect(SHOE.x, SHOE.y, 18, 14);
-  g.fillStyle = '#7a2a2a'; g.fillRect(SHOE.x + 2, SHOE.y - 4, 14, 6);
-  g.fillStyle = '#a33a3a'; g.fillRect(SHOE.x + 3, SHOE.y - 4, 12, 1);
-  // bandeja de fichas
-  g.fillStyle = '#2b1709'; g.fillRect(150, 113, 44, 8);
-  const chipCols = ['#d6403a', '#3a7bd6', '#2a2a2a', '#3fa34d', '#f4ecd8', '#b57bff'];
-  for (let i = 0; i < 6; i++) { g.fillStyle = chipCols[i]; g.fillRect(152 + i * 7, 114, 6, 6); g.fillStyle = 'rgba(255,255,255,0.4)'; g.fillRect(152 + i * 7, 114, 6, 1); }
-  bgCanvas = c;
-}
-
-// ---------------- personajes ----------------
-function px(g, x, y, w, h, col) { g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), w, h); }
-
-// Personajes elegibles. color = color del jugador (nombre, collar, listas).
-export const SKINS = [
-  { name: 'Sheriff',          color: '#f2c14e', tone: '#f0c39a', body: '#8a5a2b' },
-  { name: 'Bandida',          color: '#e8505b', tone: '#d99a6c', body: '#3a2a3a' },
-  { name: 'Tahúr',            color: '#4fbf73', tone: '#c48a5c', body: '#2f6a3f', shirt: '#fff8e8' },
-  { name: 'Minero',           color: '#5aa9e6', tone: '#a86b45', body: '#2f4f8f', shirt: '#4a6fb0' },
-  { name: 'Novato',           color: '#ff9a3c', tone: '#f6d0a8', body: '#3a6fb0', shirt: '#5a8fd0' },
-  { name: 'Cantante',         color: '#ff6fae', tone: '#f5d5c0', body: '#7a2a7a', shirt: '#b04ab0' },
-  { name: 'Doctor Charlatán', color: '#c9a0ff', tone: '#e8c0a0', body: '#5a3a2a', shirt: '#fff8e8' },
-  { name: 'Cazarrecompensas', color: '#c98a4a', tone: '#b07a50', body: '#8a3a1a' },
-  { name: 'Fantasma',         color: '#cfefff', tone: '#e8f6ff', body: '#e8f6ff' },
-  { name: 'Esqueleto',        color: '#e0e0e0', tone: '#ecebe0', body: '#2a2a32' },
-  { name: 'Cactus',           color: '#8fd14f', tone: '#4f9a3a', body: '#3f8a2f' },
-  { name: 'Burro',            color: '#a8a8bc', tone: '#8a8a9a', body: '#6a4a2a' },
-];
-export const skinColor = (p) => (SKINS[p && p.skin] || SKINS[0]).color;
-export const skinName = (p) => (SKINS[p && p.skin] || SKINS[0]).name;
-
-function drawChar(g, skin, cx, top, t, mood, dim) {
-  const S0 = SKINS[skin] || SKINS[0];
-  const ghost = skin === 8;
-  const bob = ghost ? Math.round(Math.sin(t * 3 + skin) * 2) - 1
-    : mood === 'happy' ? -Math.abs(Math.sin(t * 12)) * 3 : mood === 'turn' ? Math.round(Math.sin(t * 6)) : Math.round(Math.sin(t * 2 + skin) * 0.6);
-  const y = Math.round(top + bob);
-  const x = cx - 8;
-  const base = dim ? 0.45 : ghost ? 0.85 : 1;
-  g.globalAlpha = base;
-  // cuerpo
-  if (ghost) {
-    px(g, x + 2, y + 5, 12, 15, S0.body); px(g, x + 3, y + 3, 10, 2, S0.body);
-    const w = Math.floor(t * 6) % 2;
-    for (let k = 0; k < 4; k++) px(g, x + 2 + k * 3 + w, y + 20, 2, 2, S0.body);
-  } else {
-    px(g, x + 1, y + 15, 14, 7, S0.body);
-    if (S0.shirt) px(g, x + 6, y + 15, 4, 7, S0.shirt);
-    // cabeza
-    px(g, x + 3, y + 5, 10, 10, S0.tone);
-    px(g, x + 3, y + 14, 10, 1, 'rgba(0,0,0,0.2)');
-  }
-  // ojos (parpadeo)
-  const blink = ((t + skin * 1.7) % 4) < 0.12;
-  const eyeY = y + 9;
-  if (skin === 9) { // calavera: cuencas negras siempre
-    px(g, x + 4, eyeY - 1, 3, 3, C.black); px(g, x + 9, eyeY - 1, 3, 3, C.black);
-    if (mood !== 'bust') { px(g, x + 5, eyeY, 1, 1, '#ff5a4a'); px(g, x + 10, eyeY, 1, 1, '#ff5a4a'); }
-  } else if (mood === 'bust') {
-    for (const ex of [5, 9]) { px(g, x + ex, eyeY - 1, 1, 1, C.black); px(g, x + ex + 2, eyeY + 1, 1, 1, C.black); px(g, x + ex + 1, eyeY, 1, 1, C.black); px(g, x + ex, eyeY + 1, 1, 1, C.black); px(g, x + ex + 2, eyeY - 1, 1, 1, C.black); }
-  } else if (ghost) {
-    px(g, x + 5, eyeY - 1, 2, 3, C.black); px(g, x + 9, eyeY - 1, 2, 3, C.black);
-  } else if (!blink) {
-    px(g, x + 5, eyeY, 2, 2, C.white); px(g, x + 9, eyeY, 2, 2, C.white);
-    px(g, x + 6, eyeY, 1, 2, C.black); px(g, x + 10, eyeY, 1, 2, C.black);
-  } else { px(g, x + 5, eyeY + 1, 2, 1, C.black); px(g, x + 9, eyeY + 1, 2, 1, C.black); }
-  // boca
-  if (skin === 9) { px(g, x + 5, y + 12, 6, 2, C.black); for (let k = 0; k < 3; k++) px(g, x + 5 + k * 2, y + 12, 1, 1, S0.tone); }
-  else if (ghost) { if (mood === 'happy') px(g, x + 6, y + 13, 4, 2, C.black); else px(g, x + 7, y + 13, 2, 2, C.black); }
-  else if (mood === 'happy') { px(g, x + 6, y + 12, 4, 1, C.black); px(g, x + 7, y + 13, 2, 1, '#c0392b'); }
-  else if (mood === 'sad' || mood === 'bust') { px(g, x + 6, y + 13, 4, 1, C.black); px(g, x + 5, y + 14, 1, 1, C.black); px(g, x + 10, y + 14, 1, 1, C.black); }
-  else px(g, x + 7, y + 13, 3, 1, '#7a3b2a');
-
-  switch (skin) {
-    case 0: // Sheriff: sombrero café, bigote, estrella
-      px(g, x + 6, y + 12, 5, 1, '#5a3a1a');
-      px(g, x, y + 4, 16, 2, '#8a5a2b'); px(g, x + 3, y, 10, 5, '#a0703a'); px(g, x + 7, y, 2, 1, '#6a4a2a'); px(g, x + 3, y + 3, 10, 1, '#5a3a1a');
-      px(g, x + 3, y + 17, 3, 3, C.gold); px(g, x + 4, y + 16, 1, 1, C.gold); px(g, x + 4, y + 20, 1, 1, C.gold);
-      break;
-    case 1: // Bandida: sombrero negro, pañuelo rojo, cabello
-      px(g, x + 2, y + 6, 2, 10, '#6a3a1a'); px(g, x + 12, y + 6, 2, 10, '#6a3a1a');
-      px(g, x + 3, y + 11, 10, 4, C.red); px(g, x + 6, y + 15, 4, 2, C.red); px(g, x + 4, y + 12, 1, 1, '#ff8a80');
-      px(g, x, y + 4, 16, 2, '#1a1418'); px(g, x + 3, y, 10, 5, '#2a2228'); px(g, x + 3, y + 3, 10, 1, '#a33');
-      break;
-    case 2: // Tahúr: chistera, bigote fino, chaleco verde
-      px(g, x + 5, y + 12, 6, 1, '#1a1014'); px(g, x + 4, y + 13, 1, 1, '#1a1014'); px(g, x + 11, y + 13, 1, 1, '#1a1014');
-      px(g, x + 1, y + 4, 14, 2, '#1a1014'); px(g, x + 4, y - 4, 8, 9, '#221a22'); px(g, x + 4, y + 1, 8, 2, '#3fa34d');
-      px(g, x + 1, y + 15, 4, 7, '#3fa34d'); px(g, x + 11, y + 15, 4, 7, '#3fa34d'); px(g, x + 7, y + 16, 2, 1, C.red);
-      break;
-    case 3: // Minero: casco con lámpara, barba
-      px(g, x + 3, y + 11, 10, 5, '#d8d8d8'); px(g, x + 4, y + 16, 8, 2, '#d8d8d8'); px(g, x + 6, y + 12, 4, 1, '#7a3b2a');
-      px(g, x + 2, y + 4, 12, 2, '#d4a017'); px(g, x + 3, y + 1, 10, 4, '#f2c14e'); px(g, x + 6, y + 1, 4, 3, '#fff2a8');
-      px(g, x + 3, y + 17, 2, 5, '#6a4a2a'); px(g, x + 11, y + 17, 2, 5, '#6a4a2a');
-      if (Math.sin(t * 3) > 0) { g.globalAlpha = base * 0.25; px(g, x + 4, y - 2, 8, 3, '#fff2a8'); g.globalAlpha = base; }
-      break;
-    case 4: // Novato: sombrero de paja, pecas, paliacate
-      px(g, x + 5, y + 11, 1, 1, '#d08060'); px(g, x + 10, y + 11, 1, 1, '#d08060'); px(g, x + 6, y + 12, 1, 1, '#d08060');
-      px(g, x - 1, y + 4, 18, 2, '#e8c870'); px(g, x + 4, y + 1, 8, 4, '#f0d890'); px(g, x + 4, y + 3, 8, 1, '#c0392b');
-      px(g, x + 5, y + 15, 6, 2, '#c0392b'); px(g, x + 7, y + 17, 2, 2, '#c0392b');
-      break;
-    case 5: // Cantante: cabello rizado, pluma, labios rojos, vestido
-      px(g, x + 1, y + 4, 3, 13, '#8a2a2a'); px(g, x + 12, y + 4, 3, 13, '#8a2a2a'); px(g, x + 3, y + 3, 10, 3, '#8a2a2a');
-      px(g, x + 11, y - 3, 2, 7, '#ff6fae'); px(g, x + 12, y - 4, 2, 2, '#ffb0d8'); px(g, x + 4, y + 4, 8, 1, '#ffd23f');
-      px(g, x + 7, y + 13, 3, 1, '#d6403a');
-      px(g, x + 3, y + 16, 1, 1, '#fff'); px(g, x + 5, y + 17, 1, 1, '#fff'); px(g, x + 10, y + 17, 1, 1, '#fff'); px(g, x + 12, y + 16, 1, 1, '#fff');
-      break;
-    case 6: // Doctor charlatán: bombín, lentes redondos, bigote, botella
-      px(g, x + 3, eyeY - 1, 4, 4, '#c9a0ff'); px(g, x + 9, eyeY - 1, 4, 4, '#c9a0ff'); px(g, x + 7, eyeY, 2, 1, '#c9a0ff');
-      px(g, x + 4, eyeY, 2, 2, C.white); px(g, x + 10, eyeY, 2, 2, C.white); px(g, x + 5, eyeY, 1, 1, C.black); px(g, x + 11, eyeY, 1, 1, C.black);
-      px(g, x + 5, y + 12, 6, 1, '#4a2a1a');
-      px(g, x + 1, y + 4, 14, 1, '#1a1014'); px(g, x + 4, y, 8, 5, '#2a2228'); px(g, x + 5, y - 1, 6, 1, '#2a2228');
-      px(g, x + 12, y + 14, 3, 6, '#3fa34d'); px(g, x + 13, y + 12, 1, 2, '#3fa34d'); px(g, x + 12, y + 16, 3, 2, '#fff2a8');
-      break;
-    case 7: // Cazarrecompensas: sombrero plano, barba de días, poncho a rayas, puro
-      px(g, x + 4, y + 12, 8, 3, 'rgba(40,20,10,0.35)');
-      px(g, x - 1, y + 4, 18, 2, '#2a1a12'); px(g, x + 3, y + 1, 10, 4, '#3a2418');
-      px(g, x + 1, y + 17, 14, 1, '#ffd23f'); px(g, x + 1, y + 19, 14, 1, '#2a1a12');
-      px(g, x + 10, y + 13, 4, 1, '#6a4a2a'); px(g, x + 14, y + 13, 1, 1, '#ff7b2e');
-      if (Math.sin(t * 2) > 0.3) { g.globalAlpha = base * 0.5; px(g, x + 15, y + 10 - Math.floor(t * 4) % 3, 1, 2, '#bbb'); g.globalAlpha = base; }
-      break;
-    case 8: // Fantasma: sábana flotante con sombrero viejo
-      px(g, x + 2, y + 1, 12, 2, '#5a5a6a'); px(g, x + 4, y - 2, 8, 3, '#6a6a7a');
-      break;
-    case 9: // Esqueleto: calavera, sombrero negro, costillas
-      px(g, x + 7, y + 11, 2, 1, C.black);
-      px(g, x, y + 4, 16, 2, '#1a1014'); px(g, x + 3, y, 10, 5, '#2a2228'); px(g, x + 3, y + 3, 10, 1, '#8f2f2f');
-      for (let k = 0; k < 3; k++) px(g, x + 4, y + 16 + k * 2, 8, 1, S0.tone);
-      px(g, x + 7, y + 15, 2, 7, S0.tone);
-      break;
-    case 10: // Cactus: espinas, flor y sombrero de ala ancha
-      for (const [sx, sy] of [[2, 8], [13, 7], [2, 12], [13, 12], [5, 15], [10, 15]]) px(g, x + sx, y + sy, 1, 1, '#f4ecd8');
-      px(g, x - 2, y + 4, 20, 2, '#d4a017'); px(g, x + 4, y, 8, 5, '#e8c03a'); px(g, x + 4, y + 3, 8, 1, '#c0392b');
-      px(g, x + 12, y + 6, 3, 3, '#ff6fae'); px(g, x + 13, y + 7, 1, 1, '#ffd23f');
-      px(g, x - 1, y + 15, 3, 5, S0.body); px(g, x + 14, y + 13, 3, 5, S0.body);
-      break;
-    case 11: // Burro: orejas largas, hocico claro, mechón
-      px(g, x + 3, y - 4, 3, 10, S0.tone); px(g, x + 10, y - 4, 3, 10, S0.tone);
-      px(g, x + 4, y - 3, 1, 7, '#d8b8c8'); px(g, x + 11, y - 3, 1, 7, '#d8b8c8');
-      px(g, x + 6, y + 4, 4, 2, '#3a3a4a');
-      px(g, x + 4, y + 11, 8, 4, '#d8d8e0'); px(g, x + 5, y + 12, 1, 1, C.black); px(g, x + 10, y + 12, 1, 1, C.black);
-      break;
-  }
-  g.globalAlpha = 1;
-  // collar de color del jugador
-  if (!ghost) px(g, x + 1, y + 21, 14, 1, S0.color);
-}
-
-// Retrato del personaje en un lienzo propio (para el selector del lobby)
-export function portrait(skin, t = 0) {
-  const c = document.createElement('canvas'); c.width = 20; c.height = 28;
-  const g = c.getContext('2d');
-  drawChar(g, skin, 10, 5, t, 'idle', false);
-  return c;
-}
-
-function drawTomb(g, cx, top) {
-  px(g, cx - 7, top + 4, 14, 18, '#7a7a8a'); px(g, cx - 5, top + 2, 10, 2, '#7a7a8a');
-  px(g, cx - 7, top + 4, 1, 18, '#9a9aaa'); px(g, cx - 5, top + 2, 10, 1, '#9a9aaa');
-  drawText(g, 'RIP', cx, top + 9, '#2a2a3a', { align: 'center', outline: false });
-  px(g, cx - 9, top + 21, 18, 2, '#3a5a2a');
-}
-
-function drawDealer(g, t, st) {
-  const cx = 240, top = 60;
-  const shake = st.dealerMood === 'laugh' ? Math.round(Math.sin(t * 40)) : 0;
-  const bob = Math.round(Math.sin(t * 1.5));
-  const x = cx - 18 + shake, y = top + bob;
-  // cuerpo
-  px(g, x + 2, y + 30, 32, 24, C.white);
-  px(g, x + 2, y + 30, 9, 24, '#8f2f2f'); px(g, x + 25, y + 30, 9, 24, '#8f2f2f'); // chaleco
-  px(g, x + 14, y + 31, 8, 3, C.black); px(g, x + 17, y + 31, 2, 3, '#444'); // moño
-  px(g, x + 6, y + 36, 2, 1, C.gold); px(g, x + 6, y + 40, 2, 1, C.gold); // botones
-  px(g, x + 28, y + 36, 2, 1, C.gold); px(g, x + 28, y + 40, 2, 1, C.gold);
-  // ligas en brazos
-  px(g, x - 2, y + 32, 6, 14, C.white); px(g, x + 32, y + 32, 6, 14, C.white);
-  px(g, x - 2, y + 36, 6, 2, C.red); px(g, x + 32, y + 36, 6, 2, C.red);
-  // manos (la derecha va al zapato al repartir)
-  const reach = st.dealerReach || 0;
-  px(g, x - 1, y + 46, 5, 4, '#e8b48a');
-  px(g, x + 33 + reach * 40, y + 46 - reach * 4, 5, 4, '#e8b48a');
-  // cabeza
-  px(g, x + 9, y + 8, 18, 20, '#e8b48a');
-  px(g, x + 9, y + 26, 18, 2, '#c8946a');
-  px(g, x + 7, y + 14, 2, 5, '#e8b48a'); px(g, x + 27, y + 14, 2, 5, '#e8b48a');
-  // pelo engominado
-  px(g, x + 9, y + 6, 18, 5, '#1a1014'); px(g, x + 17, y + 6, 1, 4, '#3a3040');
-  // visera verde
-  px(g, x + 6, y + 9, 24, 3, '#2d9a5a'); px(g, x + 6, y + 11, 24, 1, '#1f6e47');
-  g.globalAlpha = 0.25; px(g, x + 9, y + 12, 18, 3, '#2d9a5a'); g.globalAlpha = 1;
-  // ojos
-  const blink = (t % 3.3) < 0.12;
-  const look = st.dealerLook || 0;
-  if (st.dealerMood === 'laugh') {
-    px(g, x + 12, y + 16, 4, 1, C.black); px(g, x + 20, y + 16, 4, 1, C.black);
-  } else if (!blink) {
-    px(g, x + 12, y + 15, 4, 3, C.white); px(g, x + 20, y + 15, 4, 3, C.white);
-    px(g, x + 13 + look, y + 15, 2, 3, C.black); px(g, x + 21 + look, y + 15, 2, 3, C.black);
-  } else { px(g, x + 12, y + 17, 4, 1, C.black); px(g, x + 20, y + 17, 4, 1, C.black); }
-  if (st.dealerMood === 'shock') { px(g, x + 11, y + 13, 5, 1, C.black); px(g, x + 20, y + 13, 5, 1, C.black); }
-  // nariz
-  px(g, x + 17, y + 18, 2, 3, '#d49a70');
-  // bigote enorme (se mueve)
-  const tw = Math.sin(t * 3) > 0.92 ? -1 : 0;
-  px(g, x + 10, y + 21, 16, 2, '#3a2418');
-  px(g, x + 7, y + 20 + tw, 4, 2, '#3a2418'); px(g, x + 25, y + 20 + tw, 4, 2, '#3a2418');
-  px(g, x + 6, y + 19 + tw, 2, 1, '#3a2418'); px(g, x + 28, y + 19 + tw, 2, 1, '#3a2418');
-  // boca
-  if (st.dealerMood === 'laugh') { px(g, x + 14, y + 23, 8, 3, '#5a1a1a'); px(g, x + 15, y + 23, 6, 1, C.white); }
-  else if (st.dealerMood === 'shock') px(g, x + 16, y + 23, 4, 3, '#5a1a1a');
-  else px(g, x + 15, y + 24, 6, 1, '#7a3b2a');
-  if (st.dealerMood === 'sweat') { px(g, x + 26, y + 12 + ((t * 20) % 8), 1, 2, '#9fd4ff'); }
-}
-
-// ---------------- cartas ----------------
-function drawCard(g, card, x, y, sx = 1) {
-  x = Math.round(x); y = Math.round(y);
-  const w = Math.max(1, Math.round(CARD_W * Math.abs(sx)));
-  const ox = x + Math.round((CARD_W - w) / 2);
-  const back = card.hidden || sx < 0;
-  // sombra
-  g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(ox + 1, y + 2, w, CARD_H);
-  let bg = C.cream, border = '#5a4a3a';
-  if (back) { bg = '#8f2f2f'; border = '#3a1010'; }
-  else if (card.k === 'b') { bg = '#ff8a3d'; border = '#7a2a0a'; }
-  else if (card.k === 'v') { bg = '#b8282a'; border = '#4a0a0a'; }
-  g.fillStyle = border; g.fillRect(ox + 1, y, w - 2, CARD_H); g.fillRect(ox, y + 1, w, CARD_H - 2);
-  g.fillStyle = bg; g.fillRect(ox + 1, y + 1, w - 2, CARD_H - 2);
-  if (w < 8) return;
-  if (back) {
-    g.fillStyle = '#b84a3a';
-    for (let yy = 3; yy < CARD_H - 3; yy++) for (let xx = 3; xx < w - 3; xx++) if ((xx + yy) % 4 === 0) g.fillRect(ox + xx, y + yy, 1, 1);
-    g.fillStyle = C.gold; g.fillRect(ox + w / 2 - 1, y + CARD_H / 2 - 1, 2, 2);
-    return;
-  }
-  if (card.k === 'c') {
-    const red = card.s === 'h' || card.s === 'd';
-    const col = red ? C.red : C.black;
-    drawText(g, card.r === '10' ? '10' : card.r, ox + 2, y + 2, col, { outline: false });
-    g.drawImage(SUIT[card.s], ox + Math.round(w / 2) - 2, y + 11);
-    if (['J', 'Q', 'K'].includes(card.r)) { g.fillStyle = C.gold; g.fillRect(ox + w - 4, y + 2, 2, 2); }
-  } else if (card.k === 'b') {
-    g.drawImage(iconCanvas(card.v >= 10 ? 'granada10' : 'granada5'), ox + 4, y + 2);
-    drawText(g, '+' + card.v, ox + w / 2, y + 13, C.white, { align: 'center' });
-  } else if (card.k === 'v') {
-    g.drawImage(iconCanvas('comunismo'), ox + 4, y + 2);
-    drawText(g, String(card.v), ox + w / 2, y + 13, '#ffd23f', { align: 'center', outlineColor: '#4a0a0a' });
-  }
-}
-
-// ---------------- estado de animación ----------------
-const S = {
-  state: null, you: null, prev: null,
-  sprites: new Map(), ghosts: [], particles: [], texts: [], projectiles: [], bubbles: [],
-  shake: 0, flash: null, dealerMood: null, dealerMoodUntil: 0, dealerReach: 0, dealerReachUntil: 0, dealerLook: 0,
-  dealerSay: null, cheerUntil: 0, booUntil: 0, moods: {}, peek: null, chaosStart: 0, chaosDur: 0, fireworksUntil: 0,
-  tumble: -1, hints: { spawn: {}, remove: {} }, time: 0,
-  targeting: null,   // [{ pid, h }] manos (h=null: jugador completo)
-  pickOwn: false,    // eligiendo una carta propia (Arrepentimiento)
-  brawl: -1, brawlNext: 25, mouse: -1, mouseNext: 12, brokenBottle: null, spin: 0, lastShieldAt: -1,
-};
-export const anim = S;
-
 const key = (pid, h) => pid + ':' + (h || 0);
+
 function playerOf(pid) { return S.state && S.state.players.find(q => q.id === pid); }
+
 function seatOf(pid) { const p = playerOf(pid); return p ? p.seat : -1; }
-// centro X de una mano (las manos divididas van lado a lado)
+
 function handX(p, h) { const n = p.hands.length; return SEATS[p.seat].x + (n > 1 ? (h === 0 ? -26 : 26) : 0); }
+
 function handLayout(n, cx, maxW = 92) {
   const gap = n > 1 ? Math.min(10, (maxW - CARD_W) / (n - 1)) : 0;
   const total = CARD_W + gap * (n - 1);
   return i => cx - total / 2 + i * gap;
 }
+
 function handPt(pid, h) {
   const p = playerOf(pid); if (!p) return { x: 240, y: 110 };
   const hh = Math.min(h || 0, Math.max(0, p.hands.length - 1));
   return { x: p.hands.length ? handX(p, hh) : SEATS[p.seat].x, y: SEATS[p.seat].cy + 8 };
 }
+
 function avatarPt(pid) { const s = seatOf(pid); return s < 0 ? { x: 240, y: 60 } : { x: SEATS[s].x - 22, y: SEATS[s].ay + 8 }; }
+
 function nameOf(pid) { const p = playerOf(pid); return p ? p.name : '?'; }
 
-// Limpia la mesa (por ejemplo, si la sala desapareció porque el servidor se reinició)
 export function resetScene() {
   S.state = null; S.prev = null; S.sprites.clear(); S.ghosts.length = 0; S.texts.length = 0;
   S.projectiles.length = 0; S.particles.length = 0; S.bubbles.length = 0; S.targeting = null; S.pickOwn = false;
@@ -516,6 +51,7 @@ export function setState(state, you, events) {
 }
 
 export let reportError = (err) => console.error(err);
+
 export function onRenderError(fn) { reportError = fn; }
 
 function layout() {
@@ -556,7 +92,6 @@ function layout() {
   }
 }
 
-// ---------------- efectos ----------------
 function burst(x, y, n, colors, speed = 60, opts = {}) {
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2, v = speed * (0.3 + Math.random());
@@ -566,47 +101,19 @@ function burst(x, y, n, colors, speed = 60, opts = {}) {
     });
   }
 }
+
 function smoke(x, y, n = 8) {
   for (let i = 0; i < n; i++) S.particles.push({ x: x + (Math.random() - 0.5) * 10, y, vx: (Math.random() - 0.5) * 15, vy: -10 - Math.random() * 20, life: 0, max: 1.2 + Math.random(), color: '#9a9a9a', size: 2, grav: -5, smoke: true });
 }
+
 function float(text, x, y, color = C.white, scale = 1, life = 1.6, vy = -14) { S.texts.push({ text, x, y, color, scale, life: 0, max: life, vy }); }
+
 function banner(text, color, scale = 3, life = 1.4) { S.texts.push({ text, x: 240, y: 48, color, scale, life: 0, max: life, vy: 0, banner: true }); }
+
 function mood(pid, m, dur = 1.6) { S.moods[pid] = { m, until: S.time + dur }; }
+
 function dealerMood(m, dur = 1.5) { S.dealerMood = m; S.dealerMoodUntil = S.time + dur; }
-// Diálogos: pri 0 = charla/turnos, 1 = normal, 2 = momentos grandes. Una frase de menor
-// prioridad no pisa a otra que lleva menos de 1.5 s en pantalla.
-const rnd = (a) => a[Math.floor(Math.random() * a.length)];
-function fill(text, vars) { for (const k in vars) text = text.split('{' + k + '}').join(vars[k]); return text; }
-function say(lines, dur = 2.8, vars = {}, pri = 1) {
-  const d = S.dealerSay, now = S.time;
-  if (d && now < d.until && pri < d.pri && now - d.start < 1.5) return;
-  S.dealerSay = { text: fill(rnd(lines), vars), start: now, until: now + dur, pri };
-  S.lastSay = now;
-}
-function patron(lines, dur = 2.4, vars = {}) {
-  S.patronSay = { i: Math.floor(Math.random() * 5), text: fill(rnd(lines), vars), start: S.time, until: S.time + dur };
-  S.lastPatron = S.time;
-}
-const IDLE_DEALER = [
-  '¿ALGUIEN QUIERE UN TRAGO?', 'ESTA MESA HUELE A TRAMPA', 'EN MIS TIEMPOS SE JUGABA LIMPIO',
-  'NO TOQUEN EL ZAPATO DE CARTAS', 'EL PIANISTA SOLO SABE UNA CANCION', 'SIN ARMAS EN LA MESA, CABALLEROS',
-  '¿QUIEN DEJO ENTRAR A ESE RATON?', 'LA CASA SIEMPRE GANA... CASI SIEMPRE', 'MI BIGOTE PRESIENTE UN BLACKJACK',
-  'SIGAN JUGANDO, QUE YO COBRO', 'OIGAN, ¿Y LA PROPINA?',
-];
-const IDLE_PATRON = [
-  '¡APUESTALO TODO!', 'YO ME PLANTABA...', 'ESE SE VA A PASAR', '¡OTRA RONDA!', '¿QUIEN HIZO TRAMPA?',
-  'MI CABALLO JUEGA MEJOR', '¡DINAMITA! ¡DINAMITA!', 'HIC!', 'TOCA OTRA, PIANISTA', 'APUESTO 5 PESOS AL DEALER',
-];
-const CARD_LINES = {
-  amnesia: ['¿SE TE OLVIDO ALGO, {t}?', 'MALA MEMORIA, ¿EH?'],
-  mantequilla: ['CUIDADO, LA MESA RESBALA', '¿QUIEN UNTO MANTEQUILLA AQUI?'],
-  espejo: ['¡ESO ES MAGIA NEGRA!', 'YO NO VI NADA RARO... CREO'],
-  vidente: ['¡DEJA DE MIRAR MIS CARTAS, {n}!', 'ESOS OJOS, {n}...'],
-  carterista: ['¡MANOS ARRIBA, LADRON!', 'CUIDA TU BOLSILLO, {t}'],
-  lazo: ['¡LAZADO COMO BECERRO!', 'YIIIHA! QUIETO, {t}'],
-  empujon: ['¡NADA DE EMPUJONES!', 'UNA CARTA MAS PARA {t}'],
-  devolver: ['AQUI NO HAY DEVOLUCIONES... BUENO', 'ARREPENTIDO, ¿EH, {n}?'],
-};
+
 function later(ms, fn) { setTimeout(fn, ms); }
 
 const CARD_NAMES = {
@@ -789,7 +296,6 @@ function handleEvent(e) {
   }
 }
 
-// ---------------- dibujo por cuadro ----------------
 export function frame(g, dt) {
   S.time += dt;
   const t = S.time, st = S.state;
@@ -1003,219 +509,6 @@ function drawChaos(g, st, t) {
   if (Math.floor(left * 2) !== S._lastTick) { S._lastTick = Math.floor(left * 2); if (left > 0.1) sfx.tick(); }
 }
 
-function drawButter(g, t) {
-  const x = SHOE.x - 18, y = SHOE.y + 4;
-  g.fillStyle = '#c9a227'; g.fillRect(x, y + 2, 12, 6);
-  g.fillStyle = '#ffe680'; g.fillRect(x, y, 12, 4);
-  g.fillStyle = '#fff2a8'; g.fillRect(x + 1, y, 4, 1);
-  g.fillStyle = '#ffd23f'; g.fillRect(x + 3, y + 8, 1, 1 + Math.floor((t * 6) % 6));
-}
-
-// cielo: del atardecer a la noche según avanza la partida
-const SKIES = [
-  ['#ffb347', '#ff8a5c', '#e8606a', '#b5507a', '#6a3a7a'],
-  ['#e8606a', '#b5507a', '#6a3a7a', '#3a2a5a', '#1a1a3a'],
-  ['#2a2a5a', '#1e1e48', '#161638', '#10102a', '#0a0a1e'],
-];
-function drawWindow(g, t, night) {
-  const x = 14, y = 18, w = 48, h = 44;
-  const bands = SKIES[night < 0.34 ? 0 : night < 0.67 ? 1 : 2];
-  for (let i = 0; i < h; i++) {
-    const k = i / h * (bands.length - 1);
-    const a = Math.floor(k), f = k - a;
-    g.fillStyle = (f > 0.5 && i % 2 === 0) ? bands[Math.min(bands.length - 1, a + 1)] : bands[a];
-    g.fillRect(x, y + h - 1 - i, w, 1);
-  }
-  if (night >= 0.67) { // luna y estrellas
-    g.fillStyle = '#f4ecd8'; g.fillRect(x + 32, y + 6, 6, 6); g.fillRect(x + 31, y + 7, 8, 4); g.fillStyle = bands[4]; g.fillRect(x + 35, y + 6, 3, 3);
-    g.fillStyle = '#fff';
-    for (let i = 0; i < 9; i++) if (Math.sin(t * 2 + i * 1.7) > -0.6) g.fillRect(x + 3 + (i * 17) % 44, y + 3 + (i * 11) % 20, 1, 1);
-  } else { // sol poniéndose
-    const sy = y + 26 + Math.round(night * 22);
-    g.fillStyle = '#fff2a8'; g.fillRect(x + 25, sy - 6, 10, 12); g.fillRect(x + 23, sy - 4, 14, 8);
-  }
-  g.fillStyle = night >= 0.67 ? '#1a1024' : '#5a2a3a'; g.fillRect(x, y + 30, 18, 14); g.fillRect(x + 4, y + 26, 10, 4);
-  g.fillStyle = night >= 0.67 ? '#100a18' : '#3a1a2a'; g.fillRect(x, y + 36, w, 8);
-  g.fillStyle = night >= 0.67 ? '#12241a' : '#2a4a2a'; g.fillRect(x + 36, y + 24, 3, 14); g.fillRect(x + 33, y + 28, 2, 5); g.fillRect(x + 33, y + 28, 3, 1); g.fillRect(x + 40, y + 26, 2, 5); g.fillRect(x + 39, y + 30, 3, 1);
-  // planta rodadora
-  if (S.tumble < 0 && Math.random() < 0.002) S.tumble = 0;
-  if (S.tumble >= 0) {
-    S.tumble += 0.35;
-    const tx = Math.round(x - 6 + S.tumble), ty = Math.round(y + 34 - Math.abs(Math.sin(S.tumble / 5)) * 6);
-    if (tx > x + 2 && tx < x + w - 3) { g.fillStyle = '#8a6a3a'; g.fillRect(tx - 2, ty - 3, 5, 6); g.fillRect(tx - 3, ty - 2, 7, 4); g.fillStyle = '#5a4a2a'; g.fillRect(tx - 2, ty - 1, 4, 1); g.fillRect(tx - 1, ty - 2, 1, 4); }
-    if (S.tumble > w + 12) S.tumble = -1;
-  }
-  g.fillStyle = C.rimD; g.fillRect(x + 23, y, 2, h); g.fillRect(x, y + 21, w, 2);
-  g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(x + 2, y + 2, 2, 16);
-}
-
-function drawSign(g, st) {
-  const flick = Math.random() < 0.02 ? 0.5 : 1;
-  g.globalAlpha = flick;
-  drawText(g, 'DUMBJACK21', 240, 12, '#ffb347', { align: 'center', scale: 2, outlineColor: '#3a1a0a' });
-  g.globalAlpha = 1;
-  if (st && st.phase !== 'lobby') drawText(g, `MANO ${st.handNo}/${st.maxHands}`, 240, 32, C.cream, { align: 'center' });
-}
-
-function drawWanted(g, st) {
-  drawText(g, 'WANTED', 358, 17, '#5a2a1a', { align: 'center', outline: false });
-  let leader = null;
-  if (st && st.players.length) leader = st.players.filter(p => p.status !== 'out').sort((a, b) => b.chips - a.chips)[0];
-  g.fillStyle = '#cdb88a'; g.fillRect(346, 24, 24, 22);
-  if (leader) {
-    drawChar(g, leader.skin, 358, 25, S.time, 'idle');
-    drawText(g, '$' + leader.chips, 358, 50, '#5a2a1a', { align: 'center', outline: false });
-  } else drawText(g, '???', 358, 32, '#5a2a1a', { align: 'center', outline: false });
-}
-
-function drawLamps(g, t, night) {
-  for (const [lx, ph] of [[150, 0], [330, 1.3]]) {
-    g.fillStyle = '#2a1a0a'; g.fillRect(lx, 0, 1, 14);
-    g.fillStyle = '#3a2a1a'; g.fillRect(lx - 3, 14, 7, 2);
-    g.fillStyle = '#ffd890'; g.fillRect(lx - 2, 16, 5, 6);
-    g.fillStyle = '#3a2a1a'; g.fillRect(lx - 3, 22, 7, 2);
-    // halo cuadriculado (pixel art), más fuerte de noche
-    const r = Math.round(20 + night * 8 + Math.sin(t * 9 + ph) * 1.5 + Math.random());
-    g.fillStyle = '#ffcc66';
-    for (let i = 0; i < 4; i++) {
-      const rr = r - i * 5; g.globalAlpha = 0.045 + night * 0.03;
-      g.fillRect(lx - rr, 19 - rr + 4, rr * 2, rr * 2 - 8); g.fillRect(lx - rr + 4, 19 - rr, rr * 2 - 8, rr * 2);
-    }
-    g.globalAlpha = 1;
-    for (let i = 0; i < 6; i++) {
-      const dx = Math.sin(t * 0.3 + i * 2.1 + ph) * 16, dy = ((t * 3 + i * 7) % 40);
-      g.fillStyle = 'rgba(255,240,200,0.5)'; g.fillRect(Math.round(lx + dx), Math.round(26 + dy), 1, 1);
-    }
-  }
-}
-
-function drawCrowd(g, t) {
-  const cheer = t < S.cheerUntil, boo = t < S.booUntil;
-  const guys = [[70, 0, '#2a1a12'], [94, 1, '#24160f'], [120, 2, '#2e1c14'], [146, 3, '#22140c'], [170, 4, '#2a1a12']];
-  for (const [gx, i, col] of guys) {
-    if (S.brawl >= 0 && (i === 1 || i === 2)) continue; // están en la pelea
-    const jump = Math.round(cheer ? Math.abs(Math.sin(t * 14 + i)) * 5 : Math.abs(Math.sin(t * 1.5 + i)) * 1);
-    const y = 72 - jump;
-    g.fillStyle = col;
-    g.fillRect(gx - 7, y + 10, 14, 30);
-    g.fillRect(gx - 4, y + 2, 8, 8);
-    if (i % 2 === 0) { g.fillRect(gx - 7, y + 1, 14, 2); g.fillRect(gx - 4, y - 3, 8, 4); }
-    else g.fillRect(gx - 5, y, 10, 3);
-    if (cheer) { g.fillRect(gx - 10, y + 2 - Math.round(Math.abs(Math.sin(t * 14 + i)) * 4), 3, 10); g.fillRect(gx + 7, y + 2 - Math.round(Math.abs(Math.cos(t * 14 + i)) * 4), 3, 10); }
-    if (boo) g.fillRect(gx + 7, y + 12, 3, 8 + Math.round(Math.sin(t * 20 + i)));
-    g.fillStyle = 'rgba(255,230,180,0.6)'; if ((t + i) % 5 > 0.15) { g.fillRect(gx - 2, y + 5, 1, 1); g.fillRect(gx + 1, y + 5, 1, 1); }
-  }
-  drawBar(g);
-}
-
-// mostrador de la cantina: tapa la mitad de abajo del público (están recargados en la barra)
-function drawBar(g) {
-  const x0 = 54, x1 = 186, top = 98;
-  g.fillStyle = C.rimD; g.fillRect(x0, top, x1 - x0, 16);
-  g.fillStyle = C.rimL; g.fillRect(x0 - 2, top, x1 - x0 + 4, 3);
-  g.fillStyle = '#a06a35'; g.fillRect(x0 - 2, top, x1 - x0 + 4, 1);
-  g.fillStyle = '#4a2a15'; for (let x = x0 + 4; x < x1 - 8; x += 22) g.fillRect(x, top + 5, 18, 8);
-  g.fillStyle = '#c9a26b'; g.fillRect(x0, top + 14, x1 - x0, 2);
-  // tarros y vasos sobre la barra
-  for (const [mx, col] of [[78, '#ffd23f'], [112, '#c9a227'], [158, '#ffd23f']]) {
-    g.fillStyle = 'rgba(230,240,255,0.7)'; g.fillRect(mx, top - 6, 5, 6); g.fillRect(mx + 5, top - 5, 2, 3);
-    g.fillStyle = col; g.fillRect(mx + 1, top - 4, 3, 4); g.fillStyle = C.white; g.fillRect(mx, top - 7, 5, 1);
-  }
-  g.fillStyle = '#8f2f2f'; g.fillRect(132, top - 8, 3, 8); g.fillRect(133, top - 11, 1, 3);
-}
-
-// pelea de cantina: de vez en cuando dos parroquianos desaparecen en una nube de polvo
-function drawBrawl(g, t, dt) {
-  if (S.brawl < 0) { S.brawlNext -= dt; if (S.brawlNext <= 0) { S.brawl = 0; S.brawlNext = 45 + Math.random() * 40; } return; }
-  S.brawl += dt;
-  const cx = 120, cy = 84;
-  for (let i = 0; i < 9; i++) {
-    const a = t * 9 + i * 0.7, r = 6 + (i % 3) * 4;
-    g.fillStyle = i % 2 ? '#d8cbb0' : '#b8a888';
-    g.fillRect(Math.round(cx + Math.cos(a) * r) - 4, Math.round(cy + Math.sin(a * 1.3) * r * 0.6) - 4, 8, 8);
-  }
-  g.fillStyle = '#24160f';
-  const k = Math.floor(t * 8) % 4;
-  g.fillRect(cx - 14 + k * 2, cy - 12, 4, 3); g.fillRect(cx + 10 - k * 2, cy + 4, 3, 5); g.fillRect(cx + 4, cy - 14 + k, 3, 4);
-  if (k % 2) drawText(g, '*', cx - 12 + k * 6, cy - 16, '#ffd23f'); else drawText(g, '!', cx + 10, cy - 14, '#ff5a4a');
-  if (S.brawl > 3.2) S.brawl = -1;
-}
-
-function drawMouse(g, t, dt) {
-  if (S.mouse < 0) { S.mouseNext -= dt; if (S.mouseNext <= 0) { S.mouse = 0; S.mouseNext = 18 + Math.random() * 25; S.mouseDir = Math.random() < 0.5 ? 1 : -1; } return; }
-  S.mouse += dt * 70;
-  const x = Math.round(S.mouseDir > 0 ? S.mouse - 8 : W + 8 - S.mouse), y = H - 6;
-  g.fillStyle = '#8a8a8a'; g.fillRect(x - 3, y, 6, 3); g.fillRect(x + S.mouseDir * 3, y + 1, 2, 2);
-  g.fillStyle = '#c9a0a0'; g.fillRect(x - S.mouseDir * 5, y + 2, 3, 1);
-  g.fillStyle = C.black; g.fillRect(x + S.mouseDir * 3, y + 1, 1, 1);
-  if (S.mouse > W + 16) S.mouse = -1;
-}
-
-function drawPianist(g, t) {
-  const b = Math.round(Math.abs(Math.sin(t * 7)) * 2);
-  const x = 410, y = 72 - b;
-  g.fillStyle = '#1a1014'; g.fillRect(x, y + 10, 14, 18);
-  g.fillStyle = '#e8b48a'; g.fillRect(x + 3, y + 2, 8, 8);
-  g.fillStyle = '#1a1014'; g.fillRect(x + 1, y, 12, 3); g.fillRect(x + 3, y - 3, 8, 3);
-  g.fillStyle = '#e8b48a'; g.fillRect(x + 14 + (Math.sin(t * 14) > 0 ? 2 : 0), y + 20, 3, 2); g.fillRect(x + 20 + (Math.cos(t * 14) > 0 ? 2 : 0), y + 20, 3, 2);
-  for (let i = 0; i < 3; i++) {
-    const k = ((t * 0.5 + i / 3) % 1);
-    const nx = Math.round(430 + Math.sin(k * 6 + i) * 8 + i * 8), ny = Math.round(60 - k * 40);
-    g.globalAlpha = 1 - k; g.fillStyle = '#ffd23f';
-    g.fillRect(nx, ny, 2, 2); g.fillRect(nx + 1, ny - 4, 1, 4); g.fillRect(nx + 2, ny - 4, 2, 1);
-  }
-  g.globalAlpha = 1;
-}
-
-function idleChatter(t) {
-  if (S.lastSay === undefined) { S.lastSay = t; S.lastPatron = t; }
-  if (!S.idleGap) S.idleGap = 10 + Math.random() * 8;
-  if (t - S.lastSay > S.idleGap) { say(IDLE_DEALER, 3.2, {}, 0); S.idleGap = 10 + Math.random() * 8; }
-  if (!S.patronGap) S.patronGap = 7 + Math.random() * 7;
-  if (t - (S.lastPatron || 0) > S.patronGap) { patron(IDLE_PATRON); S.patronGap = 7 + Math.random() * 7; }
-}
-
-function wrapText(text, max) {
-  const out = []; let line = '';
-  for (const w of text.split(' ')) {
-    if ((line + ' ' + w).trim().length > max && line) { out.push(line); line = w; }
-    else line = (line + ' ' + w).trim();
-  }
-  if (line) out.push(line);
-  return out;
-}
-// Globo de texto pixel: el texto aparece letra por letra; la colita apunta a (tx, ty).
-function bubble(g, text, start, t, x, y, tx, ty, opt = {}) {
-  const lines = wrapText(text, opt.max || 22);
-  const w = Math.max(...lines.map(l => textWidth(l))) + 8, h = lines.length * 7 + 4;
-  x = Math.round(Math.max(2, Math.min(W - w - 2, x))); y = Math.round(y - h);
-  const pop = Math.min(1, (t - start) * 8);
-  if (pop < 1) { g.globalAlpha = pop; }
-  g.fillStyle = C.black; g.fillRect(x - 1, y - 1, w + 2, h + 2);
-  g.fillStyle = opt.bg || C.white; g.fillRect(x, y, w, h);
-  // colita
-  const cx = Math.max(x + 3, Math.min(x + w - 4, tx));
-  for (let i = 0; i < 4; i++) { g.fillStyle = C.black; g.fillRect(cx - 2 + Math.round((tx - cx) * i / 4) - (i ? 0 : 0), y + h + i, 4 - i, 1); }
-  g.fillStyle = opt.bg || C.white; g.fillRect(cx - 1, y + h, 2, 1);
-  let left = Math.floor((t - start) * 45);
-  lines.forEach((l, i) => {
-    if (left <= 0) return;
-    drawText(g, l.slice(0, left), x + 4, y + 3 + i * 7, opt.color || C.black, { outline: false });
-    left -= l.length;
-  });
-  g.globalAlpha = 1;
-}
-function drawDealerSay(g, t) {
-  const d = S.dealerSay; if (!d || t > d.until) return;
-  bubble(g, d.text, d.start, t, 262, 74, 254, 82, { max: 24 });
-}
-function drawPatronSay(g, t) {
-  const p = S.patronSay; if (!p || t > p.until) return;
-  const gx = [70, 94, 120, 146, 170][p.i];
-  if (S.brawl >= 0 && (p.i === 1 || p.i === 2)) return;
-  bubble(g, p.text, p.start, t, gx - 20, 66, gx, 70, { max: 16, bg: '#f4ecd8' });
-}
-
 function drawProjectiles(g, dt) {
   for (let i = S.projectiles.length - 1; i >= 0; i--) {
     const p = S.projectiles[i]; p.t += dt;
@@ -1300,8 +593,6 @@ function drawBubbles(g, dt) {
   }
 }
 
-// ---------------- clics sobre la mesa (coords internas) ----------------
-// Devuelve la mano o el jugador bajo el cursor: { pid, h } (h=null si es la zona del avatar)
 export function seatAt(x, y) {
   if (!S.state) return null;
   for (const p of S.state.players) {
@@ -1314,7 +605,7 @@ export function seatAt(x, y) {
   }
   return null;
 }
-// Carta propia bajo el cursor (para Arrepentimiento)
+
 export function cardAt(x, y) {
   let best = null;
   for (const [id, s] of S.sprites) {

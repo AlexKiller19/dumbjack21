@@ -1,5 +1,9 @@
 import { initAudio, sfx, toggleMusic, toggleSfx, setMusicMood, musicMood } from './audio.js';
-import { W, H, frame, setState, anim, iconCanvas, seatAt, cardAt, SKINS, skinColor, skinName, portrait, resetScene, onRenderError } from './render.js';
+import { W, H } from './consts.js';
+import { iconCanvas } from './pixel.js';
+import { SKINS, skinColor, skinName, portrait } from './characters.js';
+import { anim } from './anim.js';
+import { frame, setState, seatAt, cardAt, resetScene, onRenderError } from './render.js';
 
 const $ = (id) => document.getElementById(id);
 const cv = $('cv'), g = cv.getContext('2d');
@@ -36,6 +40,23 @@ let ws = null, me = null, host = null, code = null, state = null, stateAt = 0;
 let selected = null; // { uid, type, targets:[{pid,h}], own:bool }
 let lastHudKey = '';
 let justJoined = false;
+const TOUCH = matchMedia('(hover: none), (pointer: coarse)').matches;
+let armedUid = null; // carta "armada" con el primer toque en pantallas táctiles
+if (TOUCH) document.documentElement.classList.add('touch');
+
+// ---------------- vibración y pantalla encendida (celular) ----------------
+let sfxEnabled = true;
+function buzz(pattern) { if (sfxEnabled && navigator.vibrate) try { navigator.vibrate(pattern); } catch {} }
+let wakeLock = null;
+async function keepAwake(on) {
+  try {
+    if (on && !wakeLock && navigator.wakeLock && document.visibilityState === 'visible') {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } else if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch {}
+}
+document.addEventListener('visibilitychange', () => { if (state && state.phase !== 'lobby') keepAwake(true); });
 
 // ---------------- personajes ----------------
 let mySkin = Number(localStorage.getItem('dj21skin'));
@@ -146,6 +167,14 @@ const send = (o) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o));
 
 function onEvents(events) {
   for (const e of events) {
+    if (e.type === 'turn' && e.pid === me && !e.again) buzz(60);
+    if (e.type === 'boom' && e.pid === me) buzz([90, 40, 140]);
+    if (e.type === 'bust' && e.pid === me) buzz(250);
+    if (e.type === 'revive' && e.pid === me) buzz([40, 30, 40, 30, 80]);
+    if ((e.type === 'window' && e.pid !== me && e.dur > 1000) || e.type === 'finalChaos') { const p = myP(); if (p && p.cards.some(a => !CARDS[a.type].passive)) buzz(30); }
+    if (e.type === 'start') keepAwake(true);
+    if (e.type === 'gameover') keepAwake(false);
+    if (['turn', 'hand', 'window', 'finalChaos'].includes(e.type)) armedUid = null;
     if (e.type === 'stolen') toast(e.by ? `¡${nameOf(e.by)} te robó ${CARDS[e.card].name}!` : `Le robaste ${CARDS[e.card].name} a ${nameOf(e.from)}`);
     if (['start', 'turn', 'window', 'finalChaos', 'hand', 'reveal', 'settle'].includes(e.type) && selected && !canPlayNow(selected.type)) cancelTarget();
   }
@@ -238,6 +267,38 @@ function updateMusic() {
   }
 }
 
+// ---------------- historial de jugadas ----------------
+// En pantallas anchas queda acoplado a la derecha de la mesa; en las demás se abre encima.
+let logOpen = localStorage.getItem('dj21log') === null ? window.innerWidth >= 1300 : localStorage.getItem('dj21log') === '1';
+let lastLogSeq = 0, seenLogSeq = 0;
+const logWide = () => window.innerWidth >= 1300 && !matchMedia('(orientation: landscape) and (max-height: 520px)').matches;
+function setLogOpen(on) { logOpen = on; localStorage.setItem('dj21log', on ? '1' : '0'); applyLog(); }
+function applyLog() {
+  const inGame = !!state && state.phase !== 'lobby';
+  const show = logOpen && inGame;
+  $('log-panel').classList.toggle('hidden', !show);
+  $('btn-log').classList.toggle('hidden', !inGame);
+  const docked = show && logWide();
+  if (document.body.classList.contains('log-docked') !== docked) { document.body.classList.toggle('log-docked', docked); fit(); }
+  if (show) seenLogSeq = lastLogSeq;
+  const unread = state && state.log ? state.log.filter(l => l.i > seenLogSeq).length : 0;
+  $('btn-log').textContent = show ? 'OCULTAR HISTORIAL' : 'HISTORIAL' + (unread ? ` (${unread})` : '');
+  $('btn-log').classList.toggle('unread', !show && unread > 0);
+}
+function renderLog() {
+  const log = (state && state.log) || [];
+  const last = log.length ? log[log.length - 1].i : 0;
+  if (last !== lastLogSeq) {
+    lastLogSeq = last;
+    const p = myP(), myName = p && p.name;
+    const box = $('log');
+    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+    box.innerHTML = log.map(l => `<li class="k-${l.k}${myName && l.t.includes(myName) ? ' me' : ''}">${esc(l.t)}</li>`).join('');
+    if (atBottom || !logOpen) box.scrollTop = box.scrollHeight;
+  }
+  applyLog();
+}
+
 function updateUI() {
   updateMusic();
   const inLobby = !state || state.phase === 'lobby';
@@ -245,6 +306,7 @@ function updateUI() {
   $('hud').classList.toggle('hidden', inLobby);
   $('gameover').classList.toggle('hidden', !state || state.phase !== 'gameover');
   $('roomtag').textContent = code ? `SALA ${code}` : '';
+  renderLog();
   if (inLobby) return renderLobby();
   if (state.phase === 'gameover') renderGameOver();
   renderHUD();
@@ -317,7 +379,13 @@ function renderHUD() {
     const k = document.createElement('div'); k.className = 'key'; k.textContent = `[${i + 1}]`; el.appendChild(k);
     const info = () => { $('cardinfo').innerHTML = `<b>${d.name}:</b> ${d.desc}`; };
     el.onmouseenter = () => { info(); sfx.hover(); };
-    el.onclick = () => { info(); playCard(a); };
+    if (armedUid === a.uid) el.classList.add('armed');
+    el.onclick = () => {
+      info();
+      // sin mouse no hay "pasar el cursor": el primer toque explica la carta y el segundo la juega
+      if (TOUCH && !d.passive && armedUid !== a.uid) { armedUid = a.uid; sfx.hover(); lastHudKey = ''; renderHUD(); return; }
+      armedUid = null; playCard(a);
+    };
     hand.appendChild(el);
   });
 
@@ -436,7 +504,24 @@ $('btn-copy').onclick = async () => {
   try { await navigator.clipboard.writeText(url); toast('¡Link copiado! Mándalo a tus amigos'); } catch { toast(url); }
 };
 $('btn-music').onclick = (e) => { initAudio(); e.target.textContent = 'MUSICA: ' + (toggleMusic() ? 'SI' : 'NO'); };
-$('btn-sfx').onclick = (e) => { initAudio(); e.target.textContent = 'SFX: ' + (toggleSfx() ? 'SI' : 'NO'); };
+$('btn-sfx').onclick = (e) => { initAudio(); sfxEnabled = toggleSfx(); e.target.textContent = 'SFX: ' + (sfxEnabled ? 'SI' : 'NO'); };
+// pantalla completa (sobre todo para el celular acostado)
+$('btn-full').classList.toggle('hidden', !(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen));
+$('btn-full').onclick = async () => {
+  initAudio();
+  const el = document.documentElement;
+  try {
+    if (document.fullscreenElement || document.webkitFullscreenElement) await (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    else {
+      await (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {});
+    }
+  } catch {}
+};
+if (TOUCH) $('cardinfo').textContent = 'Toca una carta para ver qué hace; tócala otra vez para jugarla.';
+$('btn-log').onclick = () => { sfx.click(); setLogOpen(!logOpen); const box = $('log'); box.scrollTop = box.scrollHeight; };
+$('btn-log-close').onclick = () => setLogOpen(false);
+window.addEventListener('resize', applyLog);
 $('emotes').innerHTML = EMOTES.map(e => `<button class="mini" data-e="${e}">${e}</button>`).join('');
 $('emotes').querySelectorAll('button').forEach(b => b.onclick = () => send({ t: 'emote', e: b.dataset.e }));
 
@@ -490,8 +575,11 @@ function fit() {
   const dpr = window.devicePixelRatio || 1;
   const phoneLandscape = matchMedia('(orientation: landscape) and (max-height: 520px)').matches;
   const narrow = window.innerWidth < 900 && !phoneLandscape;
-  const maxW = (narrow ? window.innerWidth : st.clientWidth) - (phoneLandscape ? 8 : 24);
-  const maxH = st.clientHeight - (phoneLandscape ? 8 : 24);
+  // descuenta el relleno del escenario (por ejemplo, el espacio del historial acoplado)
+  const cs = getComputedStyle(st);
+  const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight), padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+  const maxW = (narrow ? window.innerWidth : st.clientWidth - padX) - (phoneLandscape ? 8 : 24);
+  const maxH = st.clientHeight - padY - (phoneLandscape ? 8 : 24);
   const s = narrow ? maxW / W : Math.min(maxW / W, maxH / H);
   // múltiplo entero de píxeles para máxima nitidez; si eso la dejaría mucho más chica
   // (pantallas sin retina de ~720px de alto), se usa un paso de 0.5x

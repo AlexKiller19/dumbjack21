@@ -86,11 +86,91 @@ class Game {
     this.results = null;
     this.ranking = null;
     this.awards = null;
+    this.log = [];
     this.dirty = true;
   }
 
   // ---------- utilidades ----------
-  ev(type, data = {}) { this.events.push(Object.assign({ type }, data)); this.dirty = true; }
+  ev(type, data = {}) {
+    this.events.push(Object.assign({ type }, data)); this.dirty = true;
+    if (!data.to) { try { this.addLog(type, data); } catch {} } // los eventos privados no van al historial
+  }
+
+  // ---------- historial de jugadas (texto para todos) ----------
+  addLog(type, e) {
+    const n = (pid) => { const p = this.get(pid); return p ? p.name : '?'; };
+    const hv = (pid, h) => { const p = this.get(pid); const hd = p && p.hands[h || 0]; return hd ? handValue(hd.cards).v : 0; };
+    const mano = (pid, h) => { const p = this.get(pid); return p && p.hands.length > 1 ? ` (mano ${(h || 0) + 1})` : ''; };
+    const SUIT = { h: '♥', d: '♦', c: '♣', s: '♠' };
+    const lbl = (c) => !c ? '?' : c.k === 'b' ? `granada +${c.v}` : c.k === 'v' ? `${c.v}` : `${c.r}${SUIT[c.s] || ''}`;
+    const NAMES = {
+      granada5: 'Granada +5', granada10: 'Granada +10', amnesia: 'Amnesia', mantequilla: 'Mano de Mantequilla', lazo: 'Lazo',
+      empujon: 'Empujón', espejo: 'Espejo Cuántico', vidente: 'Vidente', comunismo: 'Comunismo', carterista: 'Carterista',
+      carrusel: 'Carrusel', devolver: 'Arrepentimiento', escudo: 'Escudo de Goma', abogado: 'Abogado del Diablo',
+    };
+    const money = (v) => '$' + v;
+    let t = null, k = 'info';
+    switch (type) {
+      case 'start': t = 'Empieza la partida'; k = 'hand'; break;
+      case 'hand': t = `MANO ${e.n}${e.n >= this.opts.hands ? ' (¡LA ÚLTIMA!)' : ''}`; k = 'hand'; break;
+      case 'bet': t = `${n(e.pid)} apuesta ${money(e.amount)}${e.auto ? ' (automática)' : ''}`; break;
+      case 'natural': t = `${n(e.pid)} saca ¡BLACKJACK natural!`; k = 'good'; break;
+      case 'double': t = `${n(e.pid)} dobla la apuesta`; break;
+      case 'split': t = `${n(e.pid)} divide su mano`; break;
+      case 'hit': {
+        const p = this.get(e.pid), hd = p && p.hands[e.h || 0];
+        const got = hd ? hd.cards.slice(-e.n).map(lbl).join(' y ') : '?';
+        t = `${n(e.pid)}${mano(e.pid, e.h)} recibe ${got} y queda en ${hv(e.pid, e.h)}${e.butter ? ` (mantequilla de ${n(e.by)})` : ''}`;
+        break;
+      }
+      case 'stand': if (!e.auto) t = `${n(e.pid)}${mano(e.pid, e.h)} se planta con ${hv(e.pid, e.h)}`; break;
+      case 'play': {
+        const who = e.target === e.pid ? 'sobre sí mismo' : e.target ? `contra ${n(e.target)}` : '';
+        t = `${n(e.pid)} juega ${NAMES[e.card] || e.card} ${who}`.trim(); k = 'card'; break;
+      }
+      case 'boom': t = `${n(e.pid)}${mano(e.pid, e.h)} recibe +${e.v} y queda en ${hv(e.pid, e.h)}`; k = 'bad'; break;
+      case 'shield': t = e.to ? `${n(e.pid)} rebota la carta con su Escudo hacia ${n(e.to)}` : `${n(e.pid)} rebota la carta con su Escudo`; k = 'card'; break;
+      case 'fizzle': t = `La carta rebotada no tuvo efecto en ${n(e.pid)}`; break;
+      case 'abogado': t = `${n(e.pid)} llama al Abogado del Diablo: su límite sube a 25`; k = 'good'; break;
+      case 'amnesia': t = `${n(e.pid)}${mano(e.pid, e.h)} olvida su ${lbl(e.card)} y queda en ${hv(e.pid, e.h)}`; k = 'bad'; break;
+      case 'butter': t = 'El siguiente que pida recibirá 2 cartas'; break;
+      case 'lasso': t = `${n(e.pid)}${mano(e.pid, e.h)} queda lazado y se planta con ${hv(e.pid, e.h)}`; k = 'bad'; break;
+      case 'push': t = `${n(e.pid)}${mano(e.pid, e.h)} recibe una carta a la fuerza y queda en ${hv(e.pid, e.h)}`; k = 'bad'; break;
+      case 'steal': t = `${n(e.pid)} le roba una carta de acción a ${n(e.target)}`; k = 'card'; break;
+      case 'mirror': t = `${n(e.pid)} intercambia su mano con ${n(e.target)}`; k = 'card'; break;
+      case 'vidente': t = `${n(e.pid)} espía la carta del dealer`; break;
+      case 'comunismo': t = `Todas las manos pasan a valer ${e.avg}`; k = 'card'; break;
+      case 'carousel': t = 'Todas las manos rotan a la izquierda (también la del dealer)'; k = 'card'; break;
+      case 'giveback': t = `${n(e.pid)} devuelve su ${lbl(e.card)} y queda en ${hv(e.pid, e.h)}${e.saved ? ' ¡y se salva!' : ''}`; k = e.saved ? 'good' : 'info'; break;
+      case 'revive': t = `${n(e.pid)}${mano(e.pid, e.h)} ¡revive con ${e.v}!`; k = 'good'; break;
+      case 'bust': t = `${n(e.pid)}${mano(e.pid, e.h)} se pasa con ${e.v}${e.by && e.by !== e.pid ? ` (sabotaje de ${n(e.by)})` : ''}`; k = 'bad'; break;
+      case 'reward':
+        if (e.reason !== 'bonus' && !e.full) { t = `${n(e.pid)} gana una carta de acción (${e.reason === 'sabotaje' ? 'por sabotaje' : 'por blackjack'})`; k = 'good'; }
+        break;
+      case 'finalChaos': t = '¡CAOS FINAL! Todos pueden encadenar cartas'; k = 'card'; break;
+      case 'rescue': t = 'Última oportunidad para los que se pasaron'; break;
+      case 'reveal': t = `El dealer muestra su carta: ${handValue(this.dealer.hand).v}`; k = 'dealer'; break;
+      case 'settle': {
+        this.pushLog(`Dealer termina con ${e.dealer}${e.dealerBust ? ' y se pasa' : ''}`, 'dealer');
+        const R = { win: 'gana', blackjack: 'gana con blackjack', push: 'empata', lose: 'pierde' };
+        for (const r of e.list) {
+          const amt = r.net > 0 ? '+' + money(r.net) : r.net < 0 ? '-' + money(-r.net) : '';
+          this.pushLog(`${n(r.pid)}${mano(r.pid, r.h)} ${R[r.res]} ${amt}`.trim(), r.res === 'lose' ? 'bad' : r.res === 'push' ? 'info' : 'good');
+        }
+        return;
+      }
+      case 'eliminated': t = `${n(e.pid)} se queda sin fichas y queda eliminado`; k = 'bad'; break;
+      case 'gameover': { const w = e.ranking && e.ranking[0]; t = `Fin de la partida${w ? `: gana ${n(w.pid)} con ${money(w.chips)}` : ''}`; k = 'hand'; break; }
+      case 'away': if (this.phase !== 'lobby') t = `${n(e.pid)} se desconectó`; break;
+      case 'back': if (this.phase !== 'lobby') t = `${n(e.pid)} volvió`; break;
+    }
+    if (t) this.pushLog(t, k);
+  }
+  pushLog(t, k) {
+    this.logSeq = (this.logSeq || 0) + 1;
+    this.log.push({ i: this.logSeq, t, k });
+    if (this.log.length > 80) this.log.shift();
+  }
   drain() { const e = this.events; this.events = []; this.dirty = false; return e; }
   get(id) { return this.players.find(p => p.id === id); }
   get turnId() { return this.turn ? this.turn.pid : null; }
@@ -209,6 +289,7 @@ class Game {
       for (let i = 0; i < this.cfg.startCards; i++) p.actions.push(this.drawAction());
     }
     this.handNo = 0;
+    this.log = [];
     this.buildShoe();
     this.ev('start');
     this.beginHand(now);
@@ -742,6 +823,7 @@ class Game {
       results: this.results,
       ranking: this.ranking,
       awards: this.awards,
+      log: this.log.slice(-50),
     };
   }
 }

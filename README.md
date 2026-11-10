@@ -26,14 +26,37 @@ Quien esté en tu mismo WiFi puede entrar con `http://<IP-de-tu-Mac>:8767`.
 >
 > En el plan gratis el servidor se duerme tras 15 min sin uso; la primera visita tarda ~30 s en despertarlo.
 
+## Comandos
+
+```bash
+npm start          # servidor en http://localhost:8767
+npm run lint       # revisor de código (ESLint)
+npm test           # pruebas de reglas
+npm run test:e2e   # partida completa en Chrome contra 2 bots (necesita Google Chrome instalado)
+npm run check      # todo lo anterior
+```
+
+## Publicación automática
+
+GitHub Actions (`.github/workflows/ci.yml`) corre el revisor, las pruebas y la partida en Chrome en cada push.
+En `main`, si todo pasa, avisa a Render para publicar. Para activarlo, copia el **Deploy Hook** de Render
+(Settings → Deploy Hook) en un secreto del repositorio llamado `RENDER_DEPLOY_HOOK`
+(GitHub → Settings → Secrets and variables → Actions). Sin ese secreto, solo corren las pruebas.
+
+> Cada publicación reinicia el servidor y termina las partidas en curso.
+
 ## Estructura
 
 - `game.js`: reglas (autoritativas en el servidor, sin red). Los parámetros están en `CFG` y los pesos de las cartas en `ACTIONS`.
 - `server.js`: archivos estáticos + WebSocket + salas con código y reconexión.
-- `public/render.js`: saloon, personajes, cartas y efectos (todo dibujado con código, sin imágenes).
+- `public/render.js`: orquestador del dibujo (estado de la mesa, animación de cartas, efectos y eventos).
+- `public/scene.js`: el saloon (fondo, mesa, ventana, lámparas, público, barra, pianista).
+- `public/characters.js`: los 12 personajes y el dealer.
+- `public/dialogue.js`: globos de texto del dealer y el público.
+- `public/pixel.js`: fuente bitmap, iconos y cartas. `public/consts.js` y `public/anim.js`: constantes y estado compartido.
 - `public/audio.js`: efectos y música honky-tonk sintetizados.
 - `public/main.js`: lobby, HUD, controles.
-- `test/`: `npm test` prueba las reglas.
+- `test/`: pruebas de reglas; `test/e2e/`: partida completa en Chrome.
 
 ## Atajos
 

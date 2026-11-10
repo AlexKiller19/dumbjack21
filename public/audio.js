@@ -129,6 +129,7 @@ function drums(d, s, when, beat) {
 }
 
 function startMusic() {
+  if (musicTimer) clearInterval(musicTimer);
   let next = ctx.currentTime + 0.1;
   musicTimer = setInterval(() => {
     // si la pestaña estuvo en pausa, se saltan las notas perdidas en vez de tocarlas todas de golpe

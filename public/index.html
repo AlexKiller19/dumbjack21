@@ -3,10 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#140a05">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>DumbJack21 — Blackjack de sabotaje</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -14,6 +17,8 @@
   <div id="topbar">
     <span id="roomtag"></span>
     <span class="spacer"></span>
+    <button id="btn-log" class="mini hidden">HISTORIAL</button>
+    <button id="btn-full" class="mini">PANTALLA COMPLETA</button>
     <button id="btn-manual" class="mini">MANUAL</button>
     <button id="btn-music" class="mini">MUSICA: SI</button>
     <button id="btn-sfx" class="mini">SFX: SI</button>
@@ -21,6 +26,10 @@
   <div id="stage">
     <canvas id="cv" width="480" height="256"></canvas>
     <div id="toast"></div>
+    <aside id="log-panel" class="hidden">
+      <div class="log-head"><span>HISTORIAL</span><button id="btn-log-close" class="mini">X</button></div>
+      <ol id="log"></ol>
+    </aside>
   </div>
   <div id="hud" class="hidden">
     <div id="hud-left">

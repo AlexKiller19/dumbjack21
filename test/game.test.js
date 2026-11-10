@@ -397,3 +397,17 @@ test('Los bancos se reparten al azar en cada partida', () => {
   }
   assert.ok(orders.size > 5, 'el orden cambia entre partidas');
 });
+
+test('El historial narra las jugadas sin revelar secretos', () => {
+  const { g, t } = setup({ B: ['10', '7'] }, { A: ['granada5', 'carterista'], X: ['escudo'] });
+  g.get('A').name = 'Ana'; g.get('B').name = 'Beto'; g.get('X').name = 'Xime';
+  g.play('A', 'A0', T('B'), t);
+  g.play('A', 'A1', T('X'), t);
+  const lines = g.view('A', t).log.map(l => l.t);
+  assert.ok(lines.includes('Ana juega Granada +5 contra Beto'));
+  assert.ok(lines.includes('Beto recibe +5 y queda en 22'));
+  assert.ok(lines.includes('Beto se pasa con 22 (sabotaje de Ana)'));
+  assert.ok(lines.includes('Ana le roba una carta de acción a Xime'));
+  assert.ok(!lines.some(l => /Escudo/.test(l) && /roba/.test(l)), 'no dice qué carta robó');
+  assert.ok(g.view('A', t).log.every(l => l.i && l.k), 'cada línea tiene número y tipo');
+});
