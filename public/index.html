@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DumbJack21 — Blackjack de sabotaje</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <span id="roomtag"></span>
+    <span class="spacer"></span>
+    <button id="btn-rules" class="mini">REGLAS</button>
+    <button id="btn-music" class="mini">MUSICA: SI</button>
+    <button id="btn-sfx" class="mini">SFX: SI</button>
+  </div>
+  <div id="stage">
+    <canvas id="cv" width="480" height="216"></canvas>
+    <div id="toast"></div>
+  </div>
+  <div id="hud" class="hidden">
+    <div id="hud-left">
+      <div id="me-info"></div>
+      <div id="emotes"></div>
+    </div>
+    <div id="hand-wrap">
+      <div id="hand-title">TUS CARTAS DE ACCION</div>
+      <div id="hand"></div>
+      <div id="cardinfo">Pasa el cursor sobre una carta para ver qué hace.</div>
+    </div>
+    <div id="controls"></div>
+  </div>
+</div>
+
+<div id="lobby" class="overlay">
+  <div class="panel">
+    <h1 class="logo">DUMB<span>JACK</span>21</h1>
+    <p class="tag">Blackjack. Dinamita. Traición.</p>
+    <div id="home">
+      <label>TU NOMBRE<input id="name" maxlength="12" placeholder="Forastero" autocomplete="off"></label>
+      <button id="btn-create" class="big">CREAR SALA</button>
+      <div class="or">— o únete con un código —</div>
+      <div class="row">
+        <input id="code" maxlength="4" placeholder="ABCD" autocomplete="off">
+        <button id="btn-join" class="big alt">UNIRSE</button>
+      </div>
+    </div>
+    <div id="room" class="hidden">
+      <div class="code-label">CÓDIGO DE SALA</div>
+      <div id="room-code" class="code"></div>
+      <button id="btn-copy" class="mini">COPIAR LINK</button>
+      <ul id="players"></ul>
+      <button id="btn-start" class="big">¡A JUGAR!</button>
+      <p id="wait-msg" class="muted"></p>
+    </div>
+    <p class="muted small">2 a 4 jugadores · 8 manos · 1000 fichas · si te quedas sin fichas, quedas fuera</p>
+  </div>
+</div>
+
+<div id="gameover" class="overlay hidden">
+  <div class="panel">
+    <h1 class="logo">FIN DE LA <span>PARTIDA</span></h1>
+    <ol id="ranking"></ol>
+    <button id="btn-again" class="big">OTRA PARTIDA</button>
+    <p id="again-msg" class="muted"></p>
+  </div>
+</div>
+
+<div id="rules" class="overlay hidden">
+  <div class="panel wide">
+    <h2>CÓMO SE JUEGA</h2>
+    <div class="rules-grid">
+      <div>
+        <h3>LA MANO</h3>
+        <p>Blackjack contra el dealer: acércate a 21 sin pasarte. El dealer se planta en 17. El Blackjack natural paga 3 a 2.</p>
+        <p><b>PEDIR</b> · <b>PLANTARSE</b> · <b>DOBLAR</b> (solo con 2 cartas: dobla la apuesta, recibes 1 carta y te plantas).</p>
+        <h3>EL CAOS</h3>
+        <p>Cuando alguien pide carta se abre una <b>ventana de 3 segundos</b>: cualquiera puede jugar UNA carta de acción antes de que el dealer reparta. En tu turno también puedes jugar cartas.</p>
+        <h3>ECONOMÍA</h3>
+        <p>Empiezas con 2 cartas. +1 para todos cada 2 manos. +1 si ganas con Blackjack natural. +1 si tu sabotaje hace que alguien se pase. Máximo 4.</p>
+        <p>8 manos. Gana quien tenga más fichas. Con 0 fichas quedas eliminado.</p>
+      </div>
+      <div id="rules-cards"></div>
+    </div>
+    <button id="btn-close-rules" class="big">ENTENDIDO</button>
+  </div>
+</div>
+
+<script type="module" src="main.js"></script>
+</body>
+</html>
