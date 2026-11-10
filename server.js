@@ -55,82 +55,90 @@ function attach(ws, room, pid) {
   ws.room = room; ws.pid = pid;
 }
 
+function onMessage(ws, raw) {
+  let m; try { m = JSON.parse(raw); } catch { return; }
+  if (!m || typeof m.t !== 'string') return;
+  const now = Date.now();
+
+  if (m.t === 'create' || m.t === 'join') {
+    if (ws.room) return;
+    let room;
+    if (m.t === 'create') {
+      room = { code: newCode(), game: new Game(), conns: new Map(), tokens: new Map(), host: null };
+      rooms.set(room.code, room);
+    } else {
+      room = rooms.get(String(m.code || '').toUpperCase().trim());
+      if (!room) return send(ws, { t: 'error', msg: 'No existe una sala con ese código' });
+    }
+    // reconexión
+    if (m.token && room.tokens.has(m.token)) {
+      const pid = room.tokens.get(m.token);
+      if (room.game.get(pid)) {
+        attach(ws, room, pid);
+        room.game.setConnected(pid, true, now);
+        send(ws, { t: 'joined', code: room.code, you: pid, token: m.token, host: room.host });
+        return broadcast(room);
+      }
+    }
+    const pid = newId();
+    const err = room.game.addPlayer(pid, m.name, m.skin);
+    if (err) {
+      if (!room.conns.size) rooms.delete(room.code);
+      return send(ws, { t: 'error', msg: err });
+    }
+    const token = newToken();
+    room.tokens.set(token, pid);
+    if (!room.host) room.host = pid;
+    attach(ws, room, pid);
+    send(ws, { t: 'joined', code: room.code, you: pid, token, host: room.host });
+    return broadcast(room);
+  }
+
+  const room = ws.room; if (!room) return;
+  const g = room.game, pid = ws.pid;
+  let err = null;
+  switch (m.t) {
+    case 'start':
+      if (pid !== room.host) err = 'Solo el anfitrión puede empezar';
+      else err = g.start(now);
+      break;
+    case 'again':
+      if (pid !== room.host) err = 'Solo el anfitrión puede reiniciar';
+      else err = g.backToLobby();
+      break;
+    case 'sync': return send(ws, { t: 'state', code: room.code, host: room.host, you: pid, state: g.view(pid, now), events: [] });
+    case 'clientError':
+      console.log(`[cliente ${room.code}/${pid}] ${String(m.where).slice(0, 40)} (${m.phase}): ${String(m.msg).slice(0, 600)}`);
+      return;
+    case 'skin': err = g.setSkin(pid, m.skin); break;
+    case 'bet': err = g.bet(pid, m.amount, now); break;
+    case 'hit': err = g.hit(pid, now); break;
+    case 'stand': err = g.stand(pid, now); break;
+    case 'double': err = g.double(pid, now); break;
+    case 'split': err = g.split(pid, now); break;
+    case 'play': err = g.play(pid, m.uid, { pid: m.target, h: m.th, card: m.card }, now); break;
+    case 'opt':
+      if (pid !== room.host) err = 'Solo el anfitrión cambia las opciones';
+      else err = g.setOption(String(m.key), Number(m.value));
+      break;
+    case 'emote': {
+      const e = String(m.e || '').slice(0, 12);
+      if (now - (ws.lastEmote || 0) < 1200) return;
+      ws.lastEmote = now;
+      return broadcast(room, [{ type: 'emote', pid, e }]);
+    }
+    default: return;
+  }
+  if (err) send(ws, { t: 'error', msg: err });
+  broadcast(room);
+}
+
 const wss = new WebSocketServer({ server });
 wss.on('connection', (ws) => {
   ws.isAlive = true;
   ws.on('pong', () => { ws.isAlive = true; });
   ws.on('message', (raw) => {
-    let m; try { m = JSON.parse(raw); } catch { return; }
-    if (!m || typeof m.t !== 'string') return;
-    const now = Date.now();
-
-    if (m.t === 'create' || m.t === 'join') {
-      if (ws.room) return;
-      let room;
-      if (m.t === 'create') {
-        room = { code: newCode(), game: new Game(), conns: new Map(), tokens: new Map(), host: null };
-        rooms.set(room.code, room);
-      } else {
-        room = rooms.get(String(m.code || '').toUpperCase().trim());
-        if (!room) return send(ws, { t: 'error', msg: 'No existe una sala con ese código' });
-      }
-      // reconexión
-      if (m.token && room.tokens.has(m.token)) {
-        const pid = room.tokens.get(m.token);
-        if (room.game.get(pid)) {
-          attach(ws, room, pid);
-          room.game.setConnected(pid, true, now);
-          send(ws, { t: 'joined', code: room.code, you: pid, token: m.token, host: room.host });
-          return broadcast(room);
-        }
-      }
-      const pid = newId();
-      const err = room.game.addPlayer(pid, m.name, m.skin);
-      if (err) {
-        if (!room.conns.size) rooms.delete(room.code);
-        return send(ws, { t: 'error', msg: err });
-      }
-      const token = newToken();
-      room.tokens.set(token, pid);
-      if (!room.host) room.host = pid;
-      attach(ws, room, pid);
-      send(ws, { t: 'joined', code: room.code, you: pid, token, host: room.host });
-      return broadcast(room);
-    }
-
-    const room = ws.room; if (!room) return;
-    const g = room.game, pid = ws.pid;
-    let err = null;
-    switch (m.t) {
-      case 'start':
-        if (pid !== room.host) err = 'Solo el anfitrión puede empezar';
-        else err = g.start(now);
-        break;
-      case 'again':
-        if (pid !== room.host) err = 'Solo el anfitrión puede reiniciar';
-        else err = g.backToLobby();
-        break;
-      case 'skin': err = g.setSkin(pid, m.skin); break;
-      case 'bet': err = g.bet(pid, m.amount, now); break;
-      case 'hit': err = g.hit(pid, now); break;
-      case 'stand': err = g.stand(pid, now); break;
-      case 'double': err = g.double(pid, now); break;
-      case 'split': err = g.split(pid, now); break;
-      case 'play': err = g.play(pid, m.uid, { pid: m.target, h: m.th, card: m.card }, now); break;
-      case 'opt':
-        if (pid !== room.host) err = 'Solo el anfitrión cambia las opciones';
-        else err = g.setOption(String(m.key), Number(m.value));
-        break;
-      case 'emote': {
-        const e = String(m.e || '').slice(0, 12);
-        if (now - (ws.lastEmote || 0) < 1200) return;
-        ws.lastEmote = now;
-        return broadcast(room, [{ type: 'emote', pid, e }]);
-      }
-      default: return;
-    }
-    if (err) send(ws, { t: 'error', msg: err });
-    broadcast(room);
+    try { onMessage(ws, raw); } catch (err) { console.error('[error en mensaje]', err); }
   });
 
   ws.on('close', () => {
@@ -159,8 +167,14 @@ setInterval(() => {
       if (now - (room.empty || now) > 10 * 60 * 1000) rooms.delete(room.code);
       continue;
     }
-    room.game.tick(now);
-    if (room.game.dirty) broadcast(room);
+    try {
+      room.game.tick(now);
+      if (room.game.dirty) broadcast(room);
+    } catch (err) {
+      console.error(`[error en sala ${room.code}] fase=${room.game.phase}`, err);
+      room.game.deadline = now + 1000; // reintenta en 1 s en vez de fallar 10 veces por segundo
+      try { broadcast(room); } catch {}
+    }
   }
 }, 100);
 setInterval(() => {
@@ -169,5 +183,7 @@ setInterval(() => {
     ws.isAlive = false; ws.ping();
   }
 }, 15000);
+
+process.on('uncaughtException', (err) => console.error('[error no atrapado]', err));
 
 server.listen(PORT, () => console.log(`DumbJack21 escuchando en http://localhost:${PORT}`));

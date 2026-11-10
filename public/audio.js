@@ -131,7 +131,10 @@ function drums(d, s, when, beat) {
 function startMusic() {
   let next = ctx.currentTime + 0.1;
   musicTimer = setInterval(() => {
-    while (next < ctx.currentTime + 0.3) {
+    // si la pestaña estuvo en pausa, se saltan las notas perdidas en vez de tocarlas todas de golpe
+    if (next < ctx.currentTime - 0.25) next = ctx.currentTime + 0.05;
+    let guard = 0;
+    while (next < ctx.currentTime + 0.3 && guard++ < 16) {
       const s = step % 8;
       if (s === 0 && pending) { const m = pending; pending = null; if (m !== mood) { stinger(m); mood = m; } }
       const M = MOODS[mood], P = PROG[M.prog];

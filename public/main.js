@@ -1,5 +1,5 @@
 import { initAudio, sfx, toggleMusic, toggleSfx, setMusicMood, musicMood } from './audio.js';
-import { W, H, frame, setState, anim, iconCanvas, seatAt, cardAt, SKINS, skinColor, skinName, portrait } from './render.js';
+import { W, H, frame, setState, anim, iconCanvas, seatAt, cardAt, SKINS, skinColor, skinName, portrait, resetScene, onRenderError } from './render.js';
 
 const $ = (id) => document.getElementById(id);
 const cv = $('cv'), g = cv.getContext('2d');
@@ -79,7 +79,14 @@ function connect() {
     if (sess && sess.code && sess.token) ws.send(JSON.stringify({ t: 'join', code: sess.code, token: sess.token, name: sess.name }));
   };
   ws.onmessage = (ev) => {
-    const m = JSON.parse(ev.data);
+    let m; try { m = JSON.parse(ev.data); } catch { return; }
+    lastMsgAt = performance.now();
+    try { handleMessage(m); } catch (err) { reportError(err, 'mensaje ' + m.t); }
+  };
+  ws.onclose = () => { setTimeout(connect, 1200); if (state) toast('Conexión perdida, reconectando…'); };
+}
+
+function handleMessage(m) {
     if (m.t === 'joined') {
       me = m.you; code = m.code; host = m.host; justJoined = true;
       const name = $('name').value || 'Forastero';
@@ -88,7 +95,7 @@ function connect() {
     } else if (m.t === 'state') {
       me = m.you; code = m.code; host = m.host;
       state = m.state; stateAt = performance.now();
-      setState(state, me, m.events);
+      try { setState(state, me, m.events); } catch (err) { reportError(err, 'escena'); }
       if (justJoined) {
         justJoined = false;
         const mine = state.players.find(p => p.id === me);
@@ -97,12 +104,44 @@ function connect() {
       onEvents(m.events);
       updateUI();
     } else if (m.t === 'error') {
+      if (/No existe/.test(m.msg)) {
+        // la sala ya no existe (p. ej. el servidor se reinició): volver a la pantalla de inicio
+        const wasPlaying = !!state;
+        sessionStorage.removeItem('dj21'); setInvite(null); $('code').value = ''; history.replaceState(null, '', location.pathname);
+        if (wasPlaying) {
+          state = null; code = null; me = null; selected = null; lastHudKey = '';
+          resetScene(); updateUI();
+          toast('La partida se cerró porque el servidor se reinició. Crea una sala nueva.');
+          return;
+        }
+      }
       toast(m.msg); sfx.error();
-      if (!state && /No existe/.test(m.msg)) { sessionStorage.removeItem('dj21'); setInvite(null); $('code').value = ''; history.replaceState(null, '', location.pathname); }
     }
-  };
-  ws.onclose = () => { setTimeout(connect, 1200); if (state) toast('Conexión perdida, reconectando…'); };
 }
+
+// Si el reloj de la fase ya venció hace rato y no llegó nada, se pide el estado de nuevo.
+let lastMsgAt = performance.now(), lastSyncAt = 0;
+setInterval(() => {
+  if (!state || state.phase === 'lobby' || state.phase === 'gameover') return;
+  const now = performance.now();
+  const overdue = now - stateAt > state.msLeft + 5000 && now - lastMsgAt > 5000;
+  if (overdue && now - lastSyncAt > 4000) {
+    lastSyncAt = now;
+    if (ws && ws.readyState === 1) send({ t: 'sync' });
+    else if (ws && ws.readyState === 3) connect();
+  }
+}, 2000);
+
+// Errores del cliente: se registran y se mandan al servidor (aparecen en los logs de Render)
+let errCount = 0;
+function reportError(err, where) {
+  console.error('[DumbJack21]', where, err);
+  if (errCount++ > 8) return;
+  try { send({ t: 'clientError', where: String(where).slice(0, 40), msg: String((err && err.stack) || err).slice(0, 600), phase: state && state.phase }); } catch {}
+}
+onRenderError(reportError);
+window.addEventListener('error', (e) => reportError(e.error || e.message, 'window'));
+window.addEventListener('unhandledrejection', (e) => reportError(e.reason, 'promesa'));
 const send = (o) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); };
 
 function onEvents(events) {
@@ -465,11 +504,17 @@ window.addEventListener('resize', fit);
 new ResizeObserver(fit).observe($('stage'));
 let last = performance.now();
 function loop(now) {
+  requestAnimationFrame(loop); // primero: aunque algo falle, el siguiente cuadro sigue programado
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  if (state) updateTimers();
-  frame(g, dt);
-  requestAnimationFrame(loop);
+  try {
+    if (state) updateTimers();
+    frame(g, dt);
+  } catch (err) {
+    g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; // por si el error dejó el contexto movido
+    if (!loopErrShown) { loopErrShown = true; reportError(err, 'dibujo'); }
+  }
 }
+let loopErrShown = false;
 fit(); setTimeout(fit, 50);
 requestAnimationFrame(loop);
 connect();

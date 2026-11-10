@@ -494,6 +494,12 @@ function handPt(pid, h) {
 function avatarPt(pid) { const s = seatOf(pid); return s < 0 ? { x: 240, y: 60 } : { x: SEATS[s].x - 22, y: SEATS[s].ay + 8 }; }
 function nameOf(pid) { const p = playerOf(pid); return p ? p.name : '?'; }
 
+// Limpia la mesa (por ejemplo, si la sala desapareció porque el servidor se reinició)
+export function resetScene() {
+  S.state = null; S.prev = null; S.sprites.clear(); S.ghosts.length = 0; S.texts.length = 0;
+  S.projectiles.length = 0; S.particles.length = 0; S.bubbles.length = 0; S.targeting = null; S.pickOwn = false;
+}
+
 export function setState(state, you, events) {
   S.prev = S.state; S.state = state; S.you = you;
   // pistas desde eventos para animar altas/bajas de cartas
@@ -506,8 +512,11 @@ export function setState(state, you, events) {
     if (e.type === 'comunismo') S.hints.all = 'center';
   }
   layout();
-  for (const e of events) handleEvent(e);
+  for (const e of events) { try { handleEvent(e); } catch (err) { reportError(err, 'evento ' + e.type); } }
 }
+
+export let reportError = (err) => console.error(err);
+export function onRenderError(fn) { reportError = fn; }
 
 function layout() {
   const st = S.state; if (!st) return;
