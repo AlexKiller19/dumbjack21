@@ -206,24 +206,6 @@ export function drawLamps(g, t, night) {
   }
 }
 
-export function drawCrowd(g, t) {
-  const cheer = t < S.cheerUntil, boo = t < S.booUntil;
-  const guys = [[70, 0, '#2a1a12'], [94, 1, '#24160f'], [120, 2, '#2e1c14'], [146, 3, '#22140c'], [170, 4, '#2a1a12']];
-  for (const [gx, i, col] of guys) {
-    if (S.brawl >= 0 && (i === 1 || i === 2)) continue; // están en la pelea
-    const jump = Math.round(cheer ? Math.abs(Math.sin(t * 14 + i)) * 5 : Math.abs(Math.sin(t * 1.5 + i)) * 1);
-    const y = 72 - jump;
-    g.fillStyle = col;
-    g.fillRect(gx - 7, y + 10, 14, 30);
-    g.fillRect(gx - 4, y + 2, 8, 8);
-    if (i % 2 === 0) { g.fillRect(gx - 7, y + 1, 14, 2); g.fillRect(gx - 4, y - 3, 8, 4); }
-    else g.fillRect(gx - 5, y, 10, 3);
-    if (cheer) { g.fillRect(gx - 10, y + 2 - Math.round(Math.abs(Math.sin(t * 14 + i)) * 4), 3, 10); g.fillRect(gx + 7, y + 2 - Math.round(Math.abs(Math.cos(t * 14 + i)) * 4), 3, 10); }
-    if (boo) g.fillRect(gx + 7, y + 12, 3, 8 + Math.round(Math.sin(t * 20 + i)));
-    g.fillStyle = 'rgba(255,230,180,0.6)'; if ((t + i) % 5 > 0.15) { g.fillRect(gx - 2, y + 5, 1, 1); g.fillRect(gx + 1, y + 5, 1, 1); }
-  }
-  drawBar(g);
-}
 
 export function drawBar(g) {
   const x0 = 54, x1 = 186, top = 98;
@@ -240,21 +222,6 @@ export function drawBar(g) {
   g.fillStyle = '#8f2f2f'; g.fillRect(132, top - 8, 3, 8); g.fillRect(133, top - 11, 1, 3);
 }
 
-export function drawBrawl(g, t, dt) {
-  if (S.brawl < 0) { S.brawlNext -= dt; if (S.brawlNext <= 0) { S.brawl = 0; S.brawlNext = 45 + Math.random() * 40; } return; }
-  S.brawl += dt;
-  const cx = 120, cy = 84;
-  for (let i = 0; i < 9; i++) {
-    const a = t * 9 + i * 0.7, r = 6 + (i % 3) * 4;
-    g.fillStyle = i % 2 ? '#d8cbb0' : '#b8a888';
-    g.fillRect(Math.round(cx + Math.cos(a) * r) - 4, Math.round(cy + Math.sin(a * 1.3) * r * 0.6) - 4, 8, 8);
-  }
-  g.fillStyle = '#24160f';
-  const k = Math.floor(t * 8) % 4;
-  g.fillRect(cx - 14 + k * 2, cy - 12, 4, 3); g.fillRect(cx + 10 - k * 2, cy + 4, 3, 5); g.fillRect(cx + 4, cy - 14 + k, 3, 4);
-  if (k % 2) drawText(g, '*', cx - 12 + k * 6, cy - 16, '#ffd23f'); else drawText(g, '!', cx + 10, cy - 14, '#ff5a4a');
-  if (S.brawl > 3.2) S.brawl = -1;
-}
 
 export function drawMouse(g, t, dt) {
   if (S.mouse < 0) { S.mouseNext -= dt; if (S.mouseNext <= 0) { S.mouse = 0; S.mouseNext = 18 + Math.random() * 25; S.mouseDir = Math.random() < 0.5 ? 1 : -1; } return; }

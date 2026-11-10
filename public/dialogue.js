@@ -13,8 +13,12 @@ export function say(lines, dur = 2.8, vars = {}, pri = 1) {
   S.lastSay = now;
 }
 
-export function patron(lines, dur = 2.4, vars = {}) {
-  S.patronSay = { i: Math.floor(Math.random() * 5), text: fill(rnd(lines), vars), start: S.time, until: S.time + dur };
+export function patron(lines, dur = 2.4, vars = {}, slot) {
+  // habla alguien que esté en la barra (o el lugar indicado)
+  const present = (S.npcAnchors || [0, 1, 2, 3, 4]).map((a, i) => (a ? i : -1)).filter(i => i >= 0);
+  const i = slot != null ? slot : present.length ? present[Math.floor(Math.random() * present.length)] : -1;
+  if (i < 0) return;
+  S.patronSay = { i, text: fill(rnd(lines), vars), start: S.time, until: S.time + dur };
   S.lastPatron = S.time;
 }
 
@@ -87,7 +91,7 @@ export function drawDealerSay(g, t) {
 
 export function drawPatronSay(g, t) {
   const p = S.patronSay; if (!p || t > p.until) return;
-  const gx = [70, 94, 120, 146, 170][p.i];
-  if (S.brawl >= 0 && (p.i === 1 || p.i === 2)) return;
-  bubble(g, p.text, p.start, t, gx - 20, 66, gx, 70, { max: 16, bg: '#f4ecd8' });
+  const a = S.npcAnchors ? S.npcAnchors[p.i] : { x: [70, 94, 120, 146, 170][p.i], y: 72 };
+  if (!a) return; // ese lugar está vacío o su dueño está peleando
+  bubble(g, p.text, p.start, t, a.x - 20, a.y - 8, a.x, a.y - 4, { max: 16, bg: '#f4ecd8' });
 }

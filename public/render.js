@@ -2,7 +2,8 @@
 import { C, CARD_H, CARD_W, DEALER_Y, H, SEATS, SHOE, W } from './consts.js';
 import { CARD_LINES, drawDealerSay, drawPatronSay, idleChatter, patron, say } from './dialogue.js';
 import { S } from './anim.js';
-import { TABLE, bgCanvas, buildBackground, drawBrawl, drawButter, drawCrowd, drawLamps, drawMouse, drawPianist, drawSign, drawWanted, drawWindow } from './scene.js';
+import { TABLE, bgCanvas, buildBackground, drawButter, drawLamps, drawMouse, drawPianist, drawSign, drawWanted, drawWindow } from './scene.js';
+import { updateNPCs, drawNPCs } from './npcs.js';
 import { drawCard, drawText, textWidth } from './pixel.js';
 import { drawChar, drawDealer, drawTomb, skinColor } from './characters.js';
 import { sfx } from './audio.js';
@@ -311,10 +312,10 @@ export function frame(g, dt) {
   drawSign(g, st);
   drawWanted(g, st);
   if (S.brokenBottle && t < S.brokenBottle.until) { g.fillStyle = '#2b1709'; g.fillRect(S.brokenBottle.x - 2, 24, 7, 16); g.fillStyle = '#9fd4ff'; g.fillRect(S.brokenBottle.x, 38, 3, 2); }
-  drawCrowd(g, t);
+  updateNPCs(dt);
+  drawNPCs(g, t);
   drawPianist(g, t);
   idleChatter(t);
-  drawBrawl(g, t, dt);
   // el dealer queda detrás del borde de la mesa
   g.save(); g.beginPath(); g.rect(0, 0, W, TABLE.top + 2); g.clip();
   drawDealer(g, t, S);
