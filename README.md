@@ -37,4 +37,6 @@ Quien esté en tu mismo WiFi puede entrar con `http://<IP-de-tu-Mac>:8767`.
 
 ## Atajos
 
-`H`/espacio pedir · `S` plantarse · `D` doblar · `1`-`4` jugar carta · `Esc` cancelar objetivo.
+`H`/espacio pedir · `S` plantarse · `D` doblar · `V` dividir · `1`-`5` jugar carta · `Esc` cancelar objetivo.
+
+El manual completo está dentro del juego (botón MANUAL).

@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>DumbJack21 — Blackjack de sabotaje</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,12 +14,12 @@
   <div id="topbar">
     <span id="roomtag"></span>
     <span class="spacer"></span>
-    <button id="btn-rules" class="mini">REGLAS</button>
+    <button id="btn-manual" class="mini">MANUAL</button>
     <button id="btn-music" class="mini">MUSICA: SI</button>
     <button id="btn-sfx" class="mini">SFX: SI</button>
   </div>
   <div id="stage">
-    <canvas id="cv" width="480" height="216"></canvas>
+    <canvas id="cv" width="480" height="232"></canvas>
     <div id="toast"></div>
   </div>
   <div id="hud" class="hidden">
@@ -30,10 +30,11 @@
     <div id="hand-wrap">
       <div id="hand-title">TUS CARTAS DE ACCION</div>
       <div id="hand"></div>
-      <div id="cardinfo">Pasa el cursor sobre una carta para ver qué hace.</div>
+      <div id="cardinfo">Toca una carta para ver qué hace.</div>
     </div>
     <div id="controls"></div>
   </div>
+  <div id="rotate-hint">Gira tu teléfono: acostado la mesa se ve mucho más grande.</div>
 </div>
 
 <div id="lobby" class="overlay">
@@ -55,10 +56,11 @@
       <div id="room-code" class="code"></div>
       <button id="btn-copy" class="mini">COPIAR LINK</button>
       <ul id="players"></ul>
+      <div id="options"></div>
       <button id="btn-start" class="big">¡A JUGAR!</button>
       <p id="wait-msg" class="muted"></p>
     </div>
-    <p class="muted small">2 a 4 jugadores · 8 manos · 1000 fichas · si te quedas sin fichas, quedas fuera</p>
+    <button id="btn-manual2" class="mini">¿COMO SE JUEGA? LEE EL MANUAL</button>
   </div>
 </div>
 
@@ -66,28 +68,106 @@
   <div class="panel">
     <h1 class="logo">FIN DE LA <span>PARTIDA</span></h1>
     <ol id="ranking"></ol>
+    <h3 id="awards-title">PREMIOS DEL SALOON</h3>
+    <ul id="awards"></ul>
     <button id="btn-again" class="big">OTRA PARTIDA</button>
     <p id="again-msg" class="muted"></p>
   </div>
 </div>
 
-<div id="rules" class="overlay hidden">
+<div id="manual" class="overlay hidden">
   <div class="panel wide">
-    <h2>COMO SE JUEGA</h2>
-    <div class="rules-grid">
-      <div>
-        <h3>LA MANO</h3>
-        <p>Blackjack contra el dealer: acércate a 21 sin pasarte. El dealer se planta en 17. El Blackjack natural paga 3 a 2.</p>
-        <p><b>PEDIR</b> · <b>PLANTARSE</b> · <b>DOBLAR</b> (solo con 2 cartas: dobla la apuesta, recibes 1 carta y te plantas).</p>
-        <h3>EL CAOS</h3>
-        <p>Cuando alguien pide carta se abre una <b>ventana de 3 segundos</b>: cualquiera puede jugar UNA carta de acción antes de que el dealer reparta. En tu turno también puedes jugar cartas.</p>
-        <h3>ECONOMIA</h3>
-        <p>Empiezas con 2 cartas. +1 para todos cada 2 manos. +1 si ganas con Blackjack natural. +1 si tu sabotaje hace que alguien se pase. Máximo 4.</p>
-        <p>8 manos. Gana quien tenga más fichas. Con 0 fichas quedas eliminado.</p>
-      </div>
-      <div id="rules-cards"></div>
+    <h2>MANUAL DEL FORASTERO</h2>
+    <div class="tabs">
+      <button class="tab mini" data-tab="basico">1. LO BASICO</button>
+      <button class="tab mini" data-tab="turno">2. TU TURNO</button>
+      <button class="tab mini" data-tab="caos">3. EL CAOS</button>
+      <button class="tab mini" data-tab="cartas">4. LAS CARTAS</button>
+      <button class="tab mini" data-tab="ganar">5. COMO GANAR</button>
     </div>
-    <button id="btn-close-rules" class="big">ENTENDIDO</button>
+
+    <div class="page" data-page="basico">
+      <h3>EL OBJETIVO</h3>
+      <p>Cada mano juegas <b>Blackjack contra el dealer</b>: suma más que él <b>sin pasarte de 21</b>. Tus rivales hacen lo mismo… y entre todos se sabotean con <b>cartas de acción</b>.</p>
+      <h3>CUANTO VALE CADA CARTA</h3>
+      <ul>
+        <li>Del <b>2 al 10</b>: su número.</li>
+        <li><b>J, Q, K</b>: valen 10.</li>
+        <li><b>As</b>: vale 11, o 1 si con 11 te pasarías.</li>
+      </ul>
+      <h3>COMO VA UNA MANO</h3>
+      <ol>
+        <li><b>Apuestas</b> tus fichas (tienes 15 segundos).</li>
+        <li>El dealer reparte <b>2 cartas a cada quien</b>. Una de las suyas queda boca abajo.</li>
+        <li>Cada jugador juega <b>su turno</b>, de izquierda a derecha.</li>
+        <li>El <b>dealer</b> destapa su carta y pide hasta llegar a 17 o más.</li>
+        <li>Se <b>paga</b>: si le ganas, cobras el doble de tu apuesta. Si empatan, recuperas. Si pierdes o te pasas, adiós apuesta.</li>
+      </ol>
+      <p class="tip">BLACKJACK NATURAL: si tus 2 primeras cartas suman 21, cobras 3 a 2 y te llevas una carta de acción extra.</p>
+    </div>
+
+    <div class="page hidden" data-page="turno">
+      <h3>TUS BOTONES</h3>
+      <ul>
+        <li><b class="k hit">PEDIR [H]</b> Recibes una carta más. Ojo: antes de que llegue se abre la ventana de CAOS.</li>
+        <li><b class="k stand">PLANTARSE [S]</b> Te quedas con lo que tienes y termina tu turno.</li>
+        <li><b class="k double">DOBLAR [D]</b> Solo con 2 cartas: duplicas tu apuesta, recibes UNA carta y te plantas.</li>
+        <li><b class="k split">DIVIDIR [V]</b> Si tus 2 cartas valen lo mismo, las separas en <b>dos manos</b>, cada una con su apuesta. Juegas primero una y luego la otra.</li>
+      </ul>
+      <h3>TUS CARTAS DE ACCION</h3>
+      <p>Están abajo, al centro. <b>Tócalas</b> (o usa las teclas 1 a 5) para jugarlas. Si la carta necesita víctima, toca su mano en la mesa o el botón con su nombre.</p>
+      <ul>
+        <li>En <b>tu turno</b> puedes jugar las que quieras.</li>
+        <li>En el turno de otro, solo durante la <b>ventana de CAOS</b>.</li>
+        <li>Las <b>PASIVAS</b> no se juegan: se activan solas cuando te hacen falta.</li>
+      </ul>
+      <p class="tip">Tienes 20 segundos por turno. Si se acaba el tiempo, te plantas automáticamente.</p>
+    </div>
+
+    <div class="page hidden" data-page="caos">
+      <h3>LA VENTANA DE CAOS</h3>
+      <p>Cada vez que alguien presiona <b>PEDIR</b>, el dealer espera unos segundos antes de darle la carta. La pantalla parpadea en rojo y aparece la cuenta regresiva.</p>
+      <p>En ese momento <b>cualquiera puede jugar UNA carta de acción</b>: lanzarle una granada, plantarlo con el lazo, hacer que reciba dos cartas…</p>
+      <h3>EJEMPLO</h3>
+      <ol>
+        <li>Lupe tiene 16 y pide carta. ¡CAOS!</li>
+        <li>Tú le lanzas una <b>Granada +5</b>: ahora tiene 21… ¡y todavía le falta recibir su carta!</li>
+        <li>Llega la carta, se pasa, y tú ganas una carta de acción por el sabotaje.</li>
+      </ol>
+      <h3>ULTIMA OPORTUNIDAD</h3>
+      <p>Si te pasaste y tienes <b>Arrepentimiento</b>, antes de que juegue el dealer hay una pausa de 5 segundos para que devuelvas una carta y te salves.</p>
+      <p class="tip">Si nadie tiene cartas para jugar, la ventana dura medio segundo para no perder tiempo.</p>
+    </div>
+
+    <div class="page hidden" data-page="cartas">
+      <p>Empiezas con <b>2 cartas</b> y recibes <b>una nueva cada mano</b>. Máximo 5 en la mano.</p>
+      <h3 class="c-agresion">AGRESION</h3><div id="cards-agresion" class="cards-list"></div>
+      <h3 class="c-control">MANIPULACION</h3><div id="cards-control" class="cards-list"></div>
+      <h3 class="c-defensa">DEFENSA</h3><div id="cards-defensa" class="cards-list"></div>
+    </div>
+
+    <div class="page hidden" data-page="ganar">
+      <h3>LA PARTIDA</h3>
+      <p>Se juegan varias manos (8 normalmente). <b>Gana quien termine con más fichas.</b> Si te quedas en $0, quedas <b>eliminado</b>.</p>
+      <h3>COMO CONSEGUIR MAS CARTAS</h3>
+      <ul>
+        <li><b>+1</b> para todos al empezar cada mano.</li>
+        <li><b>+1</b> si ganas con Blackjack natural.</li>
+        <li><b>+1</b> si tu sabotaje hace que alguien se pase.</li>
+      </ul>
+      <h3>CONSEJOS DE FORAJIDO</h3>
+      <ul>
+        <li>Guarda la Granada para cuando alguien pida con 16 o más.</li>
+        <li><b>Vidente + Soborno</b>: mira la carta del dealer y, si le conviene, cámbiasela.</li>
+        <li><b>Carrusel</b> cuando tu mano es mala y la del de tu derecha es buena.</li>
+        <li><b>Lazo</b> a quien pide con 11: se queda plantado con 11.</li>
+        <li>Con manos divididas eres doble objetivo: el atacante elige cuál mano atacar.</li>
+      </ul>
+      <h3>OPCIONES DE SALA</h3>
+      <p>El anfitrión elige en el lobby cuántas manos se juegan, las fichas iniciales y cuánto dura la ventana de caos.</p>
+    </div>
+
+    <button id="btn-close-manual" class="big">ENTENDIDO</button>
   </div>
 </div>
 

@@ -114,7 +114,12 @@ wss.on('connection', (ws) => {
       case 'hit': err = g.hit(pid, now); break;
       case 'stand': err = g.stand(pid, now); break;
       case 'double': err = g.double(pid, now); break;
-      case 'play': err = g.play(pid, m.uid, m.target, now); break;
+      case 'split': err = g.split(pid, now); break;
+      case 'play': err = g.play(pid, m.uid, { pid: m.target, h: m.th, card: m.card }, now); break;
+      case 'opt':
+        if (pid !== room.host) err = 'Solo el anfitrión cambia las opciones';
+        else err = g.setOption(String(m.key), Number(m.value));
+        break;
       case 'emote': {
         const e = String(m.e || '').slice(0, 12);
         if (now - (ws.lastEmote || 0) < 1200) return;
