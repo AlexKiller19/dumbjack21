@@ -500,7 +500,23 @@ function handleEvent(e) {
       S.dealerLook = Math.sign(p.x - 240);
       break;
     }
+    case 'chain': {
+      S.chain = (S.chain || 1) + 1; S.chainAt = S.time;
+      sfx.chaos(); S.shake = Math.max(S.shake, 2);
+      break;
+    }
+    case 'revive': {
+      const p = handPt(e.pid, e.h);
+      later(450, () => {
+        float('REVIVE! ' + e.v, p.x, p.y - 26, '#7ee08a', 2, 2);
+        burst(p.x, p.y, 24, ['#7ee08a', '#fff2a8', '#ffffff'], 50, { up: 30 });
+        S.particles.push({ ring: true, x: p.x, y: p.y, life: 0, max: 0.6, color: '#7ee08a' });
+        mood(e.pid, 'happy', 2); sfx.magic();
+      });
+      break;
+    }
     case 'finalChaos': {
+      S.chain = 1;
       S.chaosStart = S.time; S.chaosDur = e.dur / 1000;
       banner('CAOS FINAL!', '#ff5a4a', 3, 1.2); sfx.chaos(); S.shake = Math.max(S.shake, 3);
       say(['ULTIMA RONDA DE TRAMPAS', 'NADIE TOQUE MIS CARTAS', 'APURENSE, FORASTEROS']);
@@ -820,8 +836,10 @@ function drawChaos(g, st, t) {
     return;
   }
   if ((st.phase !== 'window' && st.phase !== 'final') || S.chaosDur < 1) return;
-  const left = Math.max(0, S.chaosDur - (t - S.chaosStart));
-  const frac = left / S.chaosDur;
+  // en el caos final el reloj se reinicia con cada carta: se toma del servidor
+  const total = st.phase === 'final' ? (st.opts ? st.opts.chaos : S.chaosDur) : S.chaosDur;
+  const left = st.phase === 'final' ? (st._msLeftLocal || 0) / 1000 : Math.max(0, S.chaosDur - (t - S.chaosStart));
+  const frac = Math.min(1, left / total);
   const pulse = Math.sin(t * 20) * 0.5 + 0.5;
   g.globalAlpha = 0.2 + pulse * 0.15; g.fillStyle = '#d6403a';
   g.fillRect(0, 0, W, 3); g.fillRect(0, H - 3, W, 3); g.fillRect(0, 0, 3, H); g.fillRect(W - 3, 0, 3, H);
@@ -830,6 +848,10 @@ function drawChaos(g, st, t) {
   drawText(g, (st.phase === 'final' ? 'CAOS FINAL! ' : 'CAOS! ') + left.toFixed(1), 240 + jx, 66, '#ff5a4a', { align: 'center', scale: 2, shadow: true });
   g.fillStyle = '#1a1014'; g.fillRect(190, 79, 100, 4);
   g.fillStyle = frac < 0.35 ? '#ff5a4a' : '#ffd23f'; g.fillRect(191, 80, Math.round(98 * frac), 2);
+  if (st.phase === 'final' && S.chain > 1) {
+    const pop = Math.max(0, 1 - (t - S.chainAt) * 4);
+    drawText(g, 'CADENA X' + (S.chain - 1), 240, 86 - Math.round(pop * 3), '#ffd23f', { align: 'center', scale: pop > 0.5 ? 2 : 1, shadow: true });
+  }
   if (Math.floor(left * 2) !== S._lastTick) { S._lastTick = Math.floor(left * 2); if (left > 0.1) sfx.tick(); }
 }
 

@@ -100,15 +100,6 @@ test('Amnesia quita la carta más alta, también de las 2 iniciales', () => {
   assert.equal(val(g, 'X'), 5);
 });
 
-test('Espejo solo con quien no se ha plantado', () => {
-  const { g, t } = setup({ A: ['10', '4'], B: ['10', 'K'] }, { A: ['espejo', 'espejo'] });
-  H(g, 'B').status = 'stood';
-  assert.match(g.play('A', 'A0', T('B'), t), /no se ha plantado/);
-  assert.equal(g.play('A', 'A1', T('X'), t), null);
-  assert.equal(val(g, 'A'), 16);
-  assert.equal(val(g, 'X'), 14);
-});
-
 test('Comunismo promedia hacia abajo', () => {
   const { g, t } = setup({ A: ['10', '2'], B: ['10', '10'], X: ['10', '9'] }, { A: ['comunismo'] });
   g.play('A', 'A0', null, t);
@@ -283,23 +274,68 @@ test('Partida completa simulada con todas las cartas termina sin errores', () =>
   }
 });
 
-test('Caos final: al plantarse el último jugador hay una ventana antes del dealer', () => {
-  const { g, t } = setup({ X: ['10', '7'] }, { A: ['empujon', 'vidente'] });
+test('Sin cartas jugables no hay caos final', () => {
+  const { g, t } = setup({}, { A: ['escudo'] });
+  g.stand('A', t); g.stand('B', t); g.stand('X', t);
+  assert.equal(g.phase, 'dealer');
+});
+
+test('Espejo funciona con plantados y te rescata si te pasaste', () => {
+  const { g, t } = setup({ A: ['10', '4'], B: ['10', 'K'], X: ['9', '9'] }, { A: ['espejo'], B: ['espejo'] });
+  H(g, 'B').status = 'stood';
+  assert.equal(g.play('A', 'A0', T('B'), t), null);    // le roba su 20 aunque se plantó
+  assert.equal(val(g, 'A'), 20); assert.equal(val(g, 'B'), 14);
+  // B se pasa y usa Espejo en el caos para cambiar su mano pasada
+  Object.assign(H(g, 'B'), { cards: [C('10'), C('8'), C('7')], status: 'bust' });
+  g.hit('A', t);
+  assert.equal(g.play('B', 'B0', T('X'), t), null);
+  assert.equal(H(g, 'B').status, 'playing', 'B revive con el 18 de X (su turno aún no llega)');
+  assert.equal(val(g, 'B'), 18);
+  assert.equal(H(g, 'X').status, 'bust', 'X recibe el 25');
+});
+
+test('Carrusel incluye manos pasadas y las puede revivir', () => {
+  const { g, t } = setup({ A: ['10', '6', '9'], B: ['4', '5'], X: ['6', '7'] }, { B: ['carrusel'] });
+  H(g, 'A').status = 'bust';
+  g.turn = { pid: 'B', h: 0 };
+  g.play('B', 'B0', null, t);
+  assert.equal(val(g, 'A'), 9);
+  assert.equal(H(g, 'A').status, 'stood', 'A ya jugó su turno: revive plantado');
+  assert.equal(handValue(g.dealer.hand).v, 25, 'el dealer se queda con el 25');
+});
+
+test('Una mano revivida antes de su turno lo sigue jugando', () => {
+  const { g, t } = setup({ A: ['4', '5'], B: ['2', '3'], X: ['10', '10', '5'] }, { A: ['carrusel'] });
+  H(g, 'X').status = 'bust'; // reventada por una granada antes de su turno
+  g.play('A', 'A0', null, t);
+  assert.equal(val(g, 'X'), 17, 'recibe la mano del dealer');
+  assert.equal(H(g, 'X').status, 'playing');
+});
+
+test('Comunismo promedia también las manos pasadas', () => {
+  const { g, t } = setup({ A: ['10', '2'], B: ['10', '10', '5'], X: ['10', '9'] }, { A: ['comunismo'] });
+  H(g, 'B').status = 'bust';
+  g.play('A', 'A0', null, t);
+  for (const id of ['A', 'B', 'X']) assert.equal(val(g, id), 18); // (12+25+19)/3
+  assert.equal(H(g, 'B').status, 'playing', 'revive y todavía juega su turno');
+});
+
+test('Caos final: ventana antes del dealer y se pueden encadenar cartas', () => {
+  const { g, t } = setup({ X: ['10', '7'] }, { A: ['empujon', 'vidente', 'soborno'], B: ['vidente'] });
   g.stand('A', t); g.stand('B', t);
-  assert.equal(g.turnId, 'X');
   g.stand('X', t + 100); // nadie pidió carta
   assert.equal(g.phase, 'final');
   assert.equal(g.deadline, t + 100 + 3000);
   g.shoe.push({ k: 'c', r: '9', s: 'h' });
-  assert.equal(g.play('A', 'A0', T('X'), t + 200), null);
+  assert.equal(g.play('A', 'A0', T('X'), t + 2000), null);
   assert.equal(H(g, 'X').status, 'bust');
-  assert.match(g.play('A', 'A1', null, t + 300), /Ya jugaste/);
-  g.tick(t + 3200);
-  assert.equal(g.phase, 'dealer');
-});
-
-test('Sin cartas jugables no hay caos final', () => {
-  const { g, t } = setup({}, { A: ['escudo'] });
-  g.stand('A', t); g.stand('B', t); g.stand('X', t);
+  assert.equal(g.deadline, t + 2000 + 3000, 'el reloj se reinicia');
+  assert.equal(g.play('A', 'A1', null, t + 2500), null, 'segunda carta en cadena');
+  assert.equal(g.play('B', 'B0', null, t + 2600), null);
+  assert.equal(g.play('A', 'A2', null, t + 2700), null, 'tercera carta en cadena');
+  // A ganó 1 carta por el sabotaje del Empujón, así que el reloj sigue en 3 s
+  g.tick(t + 2700 + 2900);
+  assert.equal(g.phase, 'final');
+  g.tick(t + 2700 + 3001);
   assert.equal(g.phase, 'dealer');
 });

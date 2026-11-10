@@ -13,12 +13,12 @@ const CARDS = {
   mantequilla: { name: 'Mano de Mantequilla', cat: 'agresion', desc: 'El siguiente jugador que pida carta recibe DOS a la vez.' },
   lazo:        { name: 'Lazo', cat: 'agresion', target: 'hand', desc: 'Obligas a un rival a plantarse YA con lo que tenga. Si estaba pidiendo, se queda sin su carta.' },
   empujon:     { name: 'Empujón', cat: 'agresion', target: 'hand', desc: 'Obligas a un rival que ya se plantó a recibir una carta más.' },
-  espejo:      { name: 'Espejo Cuántico', cat: 'control', target: 'hand', desc: 'Intercambias tu mano con la de un rival que todavía no se ha plantado.' },
+  espejo:      { name: 'Espejo Cuántico', cat: 'control', target: 'hand', desc: 'Intercambias tu mano con la de cualquier rival, aunque ya se haya plantado o pasado. Si tú te pasaste, ¡revives con su mano!' },
   vidente:     { name: 'Vidente', cat: 'control', desc: 'Ves la carta oculta del dealer y la siguiente del mazo (solo tú, 5 segundos).' },
-  comunismo:   { name: 'Comunismo', cat: 'control', desc: 'Todas las manos vivas pasan a valer el promedio (redondeado hacia abajo).' },
+  comunismo:   { name: 'Comunismo', cat: 'control', desc: 'TODAS las manos (también las pasadas) pasan a valer el promedio, redondeado hacia abajo. Las pasadas pueden revivir.' },
   carterista:  { name: 'Carterista', cat: 'control', target: 'player', desc: 'Le robas una carta de acción al azar a un rival.' },
   soborno:     { name: 'Soborno', cat: 'control', desc: 'El dealer cambia su carta oculta por la siguiente del mazo. Combina con Vidente.' },
-  carrusel:    { name: 'Carrusel', cat: 'control', desc: 'Todas las manos vivas rotan un lugar a la izquierda, ¡incluida la del dealer!' },
+  carrusel:    { name: 'Carrusel', cat: 'control', desc: 'TODAS las manos rotan un lugar a la izquierda, incluidas las pasadas y la del dealer. Si te llega una mano buena, ¡revives!' },
   devolver:    { name: 'Arrepentimiento', cat: 'defensa', target: 'own', desc: 'Devuelves una carta de tu mano, aunque ya te hayas pasado. Se puede usar en cualquier momento de la ronda.' },
   escudo:      { name: 'Escudo de Goma', cat: 'defensa', passive: true, desc: 'PASIVA: rebota la próxima Granada o Amnesia que te lancen a otra mano al azar (puede ser la del atacante).' },
   abogado:     { name: 'Abogado del Diablo', cat: 'defensa', passive: true, desc: 'PASIVA: si te pasas de 21 (hasta 25), tu límite sube a 25 esa mano. Pierde contra un 21 exacto.' },
@@ -82,7 +82,8 @@ const nameOf = (pid) => { const p = state && state.players.find(q => q.id === pi
 function canPlayNow(type) {
   const p = myP(); if (!p || !p.inHand || p.status === 'out') return false;
   if (state.phase === 'turn') return state.turnId === me || type === 'devolver';
-  if (state.phase === 'window' || state.phase === 'final') return !state.windowPlayed.includes(me);
+  if (state.phase === 'window') return !state.windowPlayed.includes(me);
+  if (state.phase === 'final') return true;
   if (state.phase === 'rescue') return type === 'devolver';
   return false;
 }
@@ -93,11 +94,11 @@ function validTargets(type) {
     if (type === 'carterista') { if (q.status !== 'out' && q.cards > 0) out.push({ pid: q.id, h: null }); continue; }
     if (!q.inHand) continue;
     q.hands.forEach((hd, h) => {
-      if (hd.status === 'bust') return;
+      if (hd.status === 'bust' && type !== 'espejo') return;
       if (type === 'amnesia' && hd.cards.length < 2) return;
       if (type === 'lazo' && hd.status !== 'playing') return;
       if (type === 'empujon' && hd.status !== 'stood') return;
-      if (type === 'espejo' && (hd.status !== 'playing' || !p.hands.some(x => x.status !== 'bust'))) return;
+      if (type === 'espejo' && !p.hands.length) return;
       out.push({ pid: q.id, h });
     });
   }
@@ -257,7 +258,7 @@ function renderHUD() {
     html = `<div class="status chaos">¡CAOS! ${who}<br>${can ? '¡Juega una carta YA!' : state.windowPlayed.includes(me) ? 'Ya jugaste tu carta.' : 'Nada que jugar…'}</div>`;
   } else if (state.phase === 'final') {
     const can = canPlayNow() && p.cards.some(a => !CARDS[a.type].passive);
-    html = `<div class="status chaos">¡CAOS FINAL! <span class="timer"></span><br>${can ? 'Última carta antes del dealer: ¡úsala!' : state.windowPlayed.includes(me) ? 'Ya jugaste tu carta.' : 'Nada que jugar…'}</div>`;
+    html = `<div class="status chaos">¡CAOS FINAL! <span class="timer"></span><br>${can ? '¡Encadena todas las cartas que quieras! Cada carta reinicia el reloj.' : 'Ya no tienes cartas que jugar…'}</div>`;
   } else if (state.phase === 'rescue') {
     html = state.rescuers.includes(me)
       ? `<div class="status rescue">¡ULTIMA OPORTUNIDAD!<br>Usa ARREPENTIMIENTO para salvarte <span class="timer"></span></div>`

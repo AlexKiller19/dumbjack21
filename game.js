@@ -375,6 +375,22 @@ class Game {
     this.ev('turn', { pid: p.id, h: pend.h, again: true });
   }
 
+  // Tras cambiarle las cartas a una mano (Espejo, Carrusel, Comunismo): si quedó por encima
+  // de su límite revienta; si estaba pasada y ahora vale, revive.
+  recheck(p, hand, creditId) {
+    const { v } = handValue(hand.cards);
+    if (hand.status === 'bust') {
+      if (v > hand.limit) return;
+      const list = this.allHands(false);
+      const me = list.findIndex(x => x.hand === hand);
+      const cur = this.turn ? list.findIndex(x => x.p.id === this.turn.pid && x.h === this.turn.h) : list.length;
+      hand.status = me > cur ? 'playing' : 'stood'; // si su turno aún no llega, lo juega
+      this.ev('revive', { pid: p.id, h: p.hands.indexOf(hand), v });
+      return;
+    }
+    this.checkBust(p, hand, creditId);
+  }
+
   // Revisa si la mano se pasó. creditId = quien lo provocó con una carta de acción.
   checkBust(p, hand, creditId) {
     if (hand.status === 'bust') return;
@@ -408,8 +424,10 @@ class Game {
     if (def.passive) return 'Esta carta es pasiva: se activa sola';
     if (this.phase === 'turn') {
       if (this.turnId !== id && !def.anytime) return 'Solo puedes jugar en tu turno o en la ventana de caos';
-    } else if (this.phase === 'window' || this.phase === 'final') {
+    } else if (this.phase === 'window') {
       if (this.windowPlayed.has(id)) return 'Ya jugaste una carta en esta ventana';
+    } else if (this.phase === 'final') {
+      // sin límite: se pueden encadenar cartas mientras corra el reloj
     } else if (this.phase === 'rescue') {
       if (type !== 'devolver') return 'Ahora solo se puede usar Arrepentimiento';
     } else return 'Ahora no se pueden jugar cartas';
@@ -419,11 +437,10 @@ class Game {
     if (def.target === 'hand') {
       tp = this.get(t.pid); th = this.handOf(t.pid, t.h | 0);
       if (!tp || tp.id === id || !th) return 'Objetivo inválido';
-      if (th.status === 'bust') return 'Esa mano ya se pasó';
+      if (th.status === 'bust' && type !== 'espejo') return 'Esa mano ya se pasó';
       if (type === 'amnesia' && th.cards.length < 2) return 'Esa mano solo tiene una carta';
       if (type === 'lazo' && th.status !== 'playing') return 'Esa mano ya está plantada';
       if (type === 'empujon' && th.status !== 'stood') return 'Solo puedes empujar a alguien que ya se plantó';
-      if (type === 'espejo' && th.status !== 'playing') return 'Solo puedes cambiar con alguien que no se ha plantado';
     } else if (def.target === 'player') {
       tp = this.get(t.pid);
       if (!tp || tp.id === id || tp.status === 'out') return 'Objetivo inválido';
@@ -436,17 +453,18 @@ class Game {
     }
     let mine = null; // mano propia para Espejo
     if (type === 'espejo') {
+      // en tu turno, la mano que estás jugando; si no, la que se pasó (para rescatarla) o la primera
       mine = this.turnId === id ? this.curHand() : null;
-      if (!mine || mine.status === 'bust') mine = p.hands.find(x => x.status !== 'bust');
-      if (!mine) return 'No puedes cambiar una mano pasada';
+      if (!mine) mine = p.hands.find(x => x.status === 'bust') || p.hands[0];
+      if (!mine) return 'No tienes mano que cambiar';
     }
-    if ((type === 'comunismo') && this.allHands(true).length < 2) return 'Se necesitan al menos 2 manos vivas';
-    if (type === 'carrusel' && this.allHands(true).length < 1) return 'No hay manos vivas que rotar';
+    if (type === 'comunismo' && this.allHands(false).length < 2) return 'Se necesitan al menos 2 manos';
+    if (type === 'carrusel' && this.allHands(false).length < 1) return 'No hay manos que rotar';
     if (type === 'soborno' && (!this.dealer.hidden || this.dealer.hand.length < 2)) return 'El dealer ya mostró su carta';
 
     p.actions.splice(idx, 1);
     p.stats.played++;
-    if (this.phase === 'window' || this.phase === 'final') this.windowPlayed.add(id);
+    if (this.phase === 'window') this.windowPlayed.add(id);
     this.ev('play', { pid: id, card: type, target: tp ? tp.id : null, th: def.target === 'hand' ? (t.h | 0) : null });
 
     switch (type) {
@@ -499,8 +517,8 @@ class Game {
         const tmp = mine.cards; mine.cards = th.cards; th.cards = tmp;
         mine.natIds = null; th.natIds = null;
         this.ev('mirror', { pid: id, h: p.hands.indexOf(mine), target: tp.id, th: t.h | 0 });
-        this.checkBust(p, mine, tp.id);
-        this.checkBust(tp, th, id);
+        this.recheck(p, mine, tp.id);
+        this.recheck(tp, th, id);
         break;
       }
       case 'vidente': {
@@ -511,11 +529,12 @@ class Game {
         break;
       }
       case 'comunismo': {
-        const part = this.allHands(true);
+        const part = this.allHands(false);
         const total = part.reduce((a, x) => a + handValue(x.hand.cards).v, 0);
         const avg = Math.floor(total / part.length);
         for (const x of part) { x.hand.cards = [{ id: this.uid++, k: 'v', v: avg }]; x.hand.natIds = null; }
         this.ev('comunismo', { pid: id, avg, total, ids: [...new Set(part.map(x => x.p.id))] });
+        for (const x of part) this.recheck(x.p, x.hand, id);
         break;
       }
       case 'carterista': {
@@ -533,12 +552,12 @@ class Game {
         break;
       case 'carrusel': {
         // cada mano pasa a la izquierda; la del dealer entra por la derecha
-        const slots = this.allHands(true);
+        const slots = this.allHands(false);
         const packs = slots.map(x => x.hand.cards).concat([this.dealer.hand]);
         slots.forEach((x, i) => { x.hand.cards = packs[i + 1]; x.hand.natIds = null; });
         this.dealer.hand = packs[0];
         this.ev('carousel', { pid: id });
-        for (const x of slots) this.checkBust(x.p, x.hand, id);
+        for (const x of slots) this.recheck(x.p, x.hand, id);
         break;
       }
       case 'devolver': {
@@ -554,6 +573,12 @@ class Game {
     }
 
     if (this.phase === 'rescue') { this.checkRescue(now); return null; }
+    if (this.phase === 'final') {
+      const more = this.inHand().some(q => q.status !== 'out' && q.connected && q.actions.some(a => !ACTIONS[a.type].passive));
+      this.deadline = now + (more ? this.opts.chaos * 1000 : 800);
+      this.ev('chain', { dur: this.deadline - now });
+      return null;
+    }
     // Si la mano en turno ya no está jugando (reventó o la plantaron), se acaba su turno.
     const cur = this.curHand();
     if (cur && cur.status !== 'playing' && (this.phase === 'turn' || this.phase === 'window')) this.nextTurn(now);
