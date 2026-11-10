@@ -399,7 +399,10 @@ function fit() {
   const maxW = (narrow ? window.innerWidth : st.clientWidth) - (phoneLandscape ? 8 : 24);
   const maxH = st.clientHeight - (phoneLandscape ? 8 : 24);
   const s = narrow ? maxW / W : Math.min(maxW / W, maxH / H);
-  const k = Math.max(1, Math.floor(s * dpr));
+  // múltiplo entero de píxeles para máxima nitidez; si eso la dejaría mucho más chica
+  // (pantallas sin retina de ~720px de alto), se usa un paso de 0.5x
+  let k = Math.max(1, Math.floor(s * dpr));
+  if (k < s * dpr * 0.75) k = Math.max(1, Math.floor(s * dpr * 2) / 2);
   cv.style.width = (W * k / dpr) + 'px';
   cv.style.height = (H * k / dpr) + 'px';
 }
