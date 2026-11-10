@@ -573,7 +573,7 @@ function handleEvent(e) {
       break;
     }
     case 'abogado': { later(500, () => { const p = handPt(e.pid, e.h); sfx.devil(); float('ABOGADO! LIMITE 25', p.x, p.y - 26, '#ff5a4a', 1, 2.2); burst(p.x, p.y, 20, ['#d6403a', '#7a0a0a', '#ff7b2e'], 40, { up: 20 }); S.flash = { color: '#7a0a0a', a: 0.35 }; }); break; }
-    case 'amnesia': { later(380, () => { const p = handPt(e.pid, e.h); float('OLVIDO SU MEJOR CARTA', p.x, p.y - 24, C.white, 1, 2); mood(e.pid, 'sad'); }); break; }
+    case 'amnesia': { later(380, () => { const p = handPt(e.pid, e.h); float(e.self ? 'SE QUITA SU CARTA ALTA' : 'OLVIDO SU MEJOR CARTA', p.x, p.y - 24, C.white, 1, 2); if (!e.self) mood(e.pid, 'sad'); }); break; }
     case 'fizzle': float('NADA QUE OLVIDAR', handPt(e.pid, 0).x, handPt(e.pid, 0).y - 22, '#aaa'); break;
     case 'butter': sfx.slip(); float('EL SIGUIENTE QUE PIDA RECIBE 2!', 240, 160, '#ffd23f', 1, 2.2); break;
     case 'lasso': { later(380, () => { const p = handPt(e.pid, e.h); float('LAZADO! SE PLANTA', p.x, p.y - 24, '#e8b46a', 1, 2); S.particles.push({ ring: true, x: p.x, y: p.y, life: 0, max: 0.5, color: '#e8b46a' }); mood(e.pid, 'sad'); sfx.boing(); }); break; }

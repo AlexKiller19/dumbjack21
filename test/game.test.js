@@ -339,3 +339,41 @@ test('Caos final: ventana antes del dealer y se pueden encadenar cartas', () => 
   g.tick(t + 2700 + 3001);
   assert.equal(g.phase, 'dealer');
 });
+
+test('Granada en tu propia mano: de 16 a 21, tu escudo no la rebota', () => {
+  const { g, t } = setup({ A: ['10', '6'] }, { A: ['granada5', 'escudo'] });
+  assert.equal(g.play('A', 'A0', T('A'), t), null);
+  assert.equal(val(g, 'A'), 21);
+  assert.equal(g.get('A').actions.length, 1, 'el escudo sigue ahí');
+});
+
+test('Pasarte con tu propia granada no te da carta de recompensa', () => {
+  const { g, t } = setup({ A: ['10', '8'] }, { A: ['granada10'] });
+  g.play('A', 'A0', T('A'), t);
+  assert.equal(H(g, 'A').status, 'bust');
+  assert.equal(g.get('A').actions.length, 0);
+  assert.equal(g.turnId, 'B', 'se acaba su turno');
+});
+
+test('Amnesia en ti mismo te revive si te pasaste', () => {
+  const { g, t } = setup({ A: ['10', '6', '9'] }, { A: ['amnesia'] });
+  H(g, 'A').status = 'bust';
+  g.turn = { pid: 'B', h: 0 }; g.hit('B', t);
+  assert.equal(g.play('A', 'A0', T('A'), t), null);
+  assert.equal(val(g, 'A'), 15); // pierde el 10
+  assert.equal(H(g, 'A').status, 'stood');
+});
+
+test('Empujón en ti mismo: una carta más aunque ya te plantaste', () => {
+  const { g, t } = setup({ A: ['10', '2'] }, { A: ['empujon'] });
+  H(g, 'A').status = 'stood';
+  g.turn = { pid: 'B', h: 0 }; g.hit('B', t);
+  g.shoe.push({ k: 'c', r: '8', s: 'h' });
+  assert.equal(g.play('A', 'A0', T('A'), t), null);
+  assert.equal(val(g, 'A'), 20);
+});
+
+test('Lazo, Espejo y Carterista no se pueden usar en ti mismo', () => {
+  const { g, t } = setup({}, { A: ['lazo', 'espejo', 'carterista'] });
+  for (const uid of ['A0', 'A1', 'A2']) assert.match(g.play('A', uid, T('A'), t), /inválido/);
+});

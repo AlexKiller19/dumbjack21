@@ -61,6 +61,8 @@ function handValue(cards) {
   if (aces && v + 10 <= 21) { v += 10; soft = true; }
   return { v, soft };
 }
+// Cartas que también puedes usar en tu propia mano
+const SELF_OK = new Set(['granada5', 'granada10', 'amnesia', 'empujon']);
 const newHand = (bet) => ({ cards: [], bet, status: 'playing', doubled: false, limit: 21, natIds: null, split: false });
 const newStats = () => ({ played: 0, caused: 0, bombs: 0, busts: 0, bj: 0, shields: 0, best: 0 });
 
@@ -436,8 +438,10 @@ class Game {
     let tp = null, th = null;
     if (def.target === 'hand') {
       tp = this.get(t.pid); th = this.handOf(t.pid, t.h | 0);
-      if (!tp || tp.id === id || !th) return 'Objetivo inválido';
-      if (th.status === 'bust' && type !== 'espejo') return 'Esa mano ya se pasó';
+      const self = tp && tp.id === id;
+      if (!tp || !th || (self && !SELF_OK.has(type))) return 'Objetivo inválido';
+      // Amnesia en tu propia mano pasada sirve para revivir
+      if (th.status === 'bust' && type !== 'espejo' && !(self && type === 'amnesia')) return 'Esa mano ya se pasó';
       if (type === 'amnesia' && th.cards.length < 2) return 'Esa mano solo tiene una carta';
       if (type === 'lazo' && th.status !== 'playing') return 'Esa mano ya está plantada';
       if (type === 'empujon' && th.status !== 'stood') return 'Solo puedes empujar a alguien que ya se plantó';
@@ -472,7 +476,7 @@ class Game {
       case 'granada10':
       case 'amnesia': {
         let vp = tp, vh = th, credit = id;
-        if (this.takePassive(vp, 'escudo')) {
+        if (vp.id !== id && this.takePassive(vp, 'escudo')) { // tu escudo no rebota tus propias cartas
           vp.stats.shields++;
           const pool = this.allHands(true).filter(x => x.p.id !== vp.id);
           const nv = pool.length ? this.pick(pool) : null;
@@ -490,7 +494,8 @@ class Game {
           let bi = 0;
           vh.cards.forEach((c, i) => { if (rank(c) >= rank(vh.cards[bi])) bi = i; });
           const lost = vh.cards.splice(bi, 1)[0];
-          this.ev('amnesia', { pid: vp.id, h, card: lost });
+          this.ev('amnesia', { pid: vp.id, h, card: lost, self: vp.id === id });
+          if (vh.status === 'bust') this.recheck(vp, vh, id);
         } else {
           const v = type === 'granada5' ? 5 : 10;
           vh.cards.push({ id: this.uid++, k: 'b', v });

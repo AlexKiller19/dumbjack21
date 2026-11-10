@@ -7,12 +7,12 @@ g.imageSmoothingEnabled = false;
 
 // target: 'hand' = mano de un rival, 'player' = un rival, 'own' = una carta tuya
 const CARDS = {
-  granada5:    { name: 'Granada +5', cat: 'agresion', target: 'hand', desc: 'Suma +5 a la mano de un rival. Letal si ya va en 17 o más.' },
-  granada10:   { name: 'Granada +10', cat: 'agresion', target: 'hand', desc: 'Suma +10 a la mano de un rival. Rara y devastadora.' },
-  amnesia:     { name: 'Amnesia', cat: 'agresion', target: 'hand', desc: 'Un rival pierde la carta MÁS ALTA de su mano (el As cuenta como 11).' },
+  granada5:    { name: 'Granada +5', cat: 'agresion', target: 'hand', desc: 'Suma +5 a una mano. Letal contra un rival en 17… o úsala en ti para pasar de 16 a 21.' },
+  granada10:   { name: 'Granada +10', cat: 'agresion', target: 'hand', desc: 'Suma +10 a una mano. Rara y devastadora; en ti, convierte un 11 en 21.' },
+  amnesia:     { name: 'Amnesia', cat: 'agresion', target: 'hand', desc: 'Una mano pierde su carta MÁS ALTA (el As cuenta como 11). En ti mismo, ¡te revive si te pasaste!' },
   mantequilla: { name: 'Mano de Mantequilla', cat: 'agresion', desc: 'El siguiente jugador que pida carta recibe DOS a la vez.' },
   lazo:        { name: 'Lazo', cat: 'agresion', target: 'hand', desc: 'Obligas a un rival a plantarse YA con lo que tenga. Si estaba pidiendo, se queda sin su carta.' },
-  empujon:     { name: 'Empujón', cat: 'agresion', target: 'hand', desc: 'Obligas a un rival que ya se plantó a recibir una carta más.' },
+  empujon:     { name: 'Empujón', cat: 'agresion', target: 'hand', desc: 'Una mano plantada recibe una carta más. Úsala en un rival… o en ti para pedir aunque ya te plantaste.' },
   espejo:      { name: 'Espejo Cuántico', cat: 'control', target: 'hand', desc: 'Intercambias tu mano con la de cualquier rival, aunque ya se haya plantado o pasado. Si tú te pasaste, ¡revives con su mano!' },
   vidente:     { name: 'Vidente', cat: 'control', desc: 'Ves la carta oculta del dealer y la siguiente del mazo (solo tú, 5 segundos).' },
   comunismo:   { name: 'Comunismo', cat: 'control', desc: 'TODAS las manos (también las pasadas) pasan a valer el promedio, redondeado hacia abajo. Las pasadas pueden revivir.' },
@@ -87,14 +87,17 @@ function canPlayNow(type) {
   if (state.phase === 'rescue') return type === 'devolver';
   return false;
 }
+const SELF_OK = ['granada5', 'granada10', 'amnesia', 'empujon'];
 function validTargets(type) {
   const p = myP(), out = [];
-  for (const q of state.players) {
-    if (q.id === me) continue;
+  // tu mano va al final de la lista: primero los rivales
+  for (const q of state.players.slice().sort((a, b) => (a.id === me) - (b.id === me))) {
+    const self = q.id === me;
+    if (self && !SELF_OK.includes(type)) continue;
     if (type === 'carterista') { if (q.status !== 'out' && q.cards > 0) out.push({ pid: q.id, h: null }); continue; }
     if (!q.inHand) continue;
     q.hands.forEach((hd, h) => {
-      if (hd.status === 'bust' && type !== 'espejo') return;
+      if (hd.status === 'bust' && type !== 'espejo' && !(self && type === 'amnesia')) return;
       if (type === 'amnesia' && hd.cards.length < 2) return;
       if (type === 'lazo' && hd.status !== 'playing') return;
       if (type === 'empujon' && hd.status !== 'stood') return;
@@ -234,11 +237,12 @@ function renderHUD() {
       p.hands.map((hd, h) => hd.cards.length < 2 ? '' : hd.cards.map(cd => `<button class="target own" data-own="${h}" data-card="${cd.id}">${multi(p) ? 'M' + (h + 1) + ' ' : ''}${cardLabel(cd)}</button>`).join('')).join('') +
       `</div><div class="row"><button class="mini" data-act="cancel">CANCELAR [ESC]</button></div>`;
   } else if (selected) {
-    html = `<div class="status">ELIGE A TU VICTIMA<br><small>(o toca su mano en la mesa)</small></div><div class="row">` +
+    html = `<div class="status">ELIGE EL OBJETIVO<br><small>(o toca la mano en la mesa)</small></div><div class="row">` +
       selected.targets.map(tg => {
         const q = state.players.find(x => x.id === tg.pid);
-        const lbl = tg.h == null ? `${esc(q.name)} (${q.cards} cartas)` : `${esc(q.name)}${multi(q) ? ' M' + (tg.h + 1) : ''} (${q.hands[tg.h].value})`;
-        return `<button class="target" data-target="${tg.pid}" data-h="${tg.h == null ? '' : tg.h}">${lbl}</button>`;
+        const who = q.id === me ? 'TU' : esc(q.name);
+        const lbl = tg.h == null ? `${who} (${q.cards} cartas)` : `${who}${multi(q) ? ' M' + (tg.h + 1) : ''} (${q.hands[tg.h].value})`;
+        return `<button class="target${q.id === me ? ' own' : ''}" data-target="${tg.pid}" data-h="${tg.h == null ? '' : tg.h}">${lbl}</button>`;
       }).join('') + `</div><div class="row"><button class="mini" data-act="cancel">CANCELAR [ESC]</button></div>`;
   } else if (state.phase === 'betting') {
     if (p.status === 'betting') {
