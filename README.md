@@ -2,6 +2,8 @@
 
 Blackjack de sabotaje multijugador (2 a 4 jugadores) en un saloon del viejo oeste en pixel art. Corre en el navegador.
 
+**Jugar en línea:** https://dumbjack21.onrender.com
+
 ## Jugar en tu Mac
 
 ```bash
@@ -20,6 +22,8 @@ Quien esté en tu mismo WiFi puede entrar con `http://<IP-de-tu-Mac>:8767`.
 3. Build command: `npm install` · Start command: `npm start` · Plan: Free.
 4. Render asigna el puerto con la variable `PORT` (el servidor ya la usa) y te da una URL `https://….onrender.com`. Los WebSockets funcionan sin configurar nada.
 
+> Como el servicio se creó desde un repo público, Render **no** redespliega solo: después de un `git push`, usa **Manual Deploy → Deploy latest commit** en el panel.
+>
 > En el plan gratis el servidor se duerme tras 15 min sin uso; la primera visita tarda ~30 s en despertarlo.
 
 ## Estructura
