@@ -69,7 +69,7 @@ const send = (o) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o));
 function onEvents(events) {
   for (const e of events) {
     if (e.type === 'stolen') toast(e.by ? `¡${nameOf(e.by)} te robó ${CARDS[e.card].name}!` : `Le robaste ${CARDS[e.card].name} a ${nameOf(e.from)}`);
-    if (['start', 'turn', 'window', 'hand', 'reveal', 'settle'].includes(e.type) && selected && !canPlayNow(selected.type)) cancelTarget();
+    if (['start', 'turn', 'window', 'finalChaos', 'hand', 'reveal', 'settle'].includes(e.type) && selected && !canPlayNow(selected.type)) cancelTarget();
   }
 }
 
@@ -82,7 +82,7 @@ const nameOf = (pid) => { const p = state && state.players.find(q => q.id === pi
 function canPlayNow(type) {
   const p = myP(); if (!p || !p.inHand || p.status === 'out') return false;
   if (state.phase === 'turn') return state.turnId === me || type === 'devolver';
-  if (state.phase === 'window') return !state.windowPlayed.includes(me);
+  if (state.phase === 'window' || state.phase === 'final') return !state.windowPlayed.includes(me);
   if (state.phase === 'rescue') return type === 'devolver';
   return false;
 }
@@ -255,6 +255,9 @@ function renderHUD() {
     const who = state.turnId === me ? 'TU PIDES CARTA' : `${esc(turnP ? turnP.name : '?')} PIDE CARTA`;
     const can = canPlayNow() && p.cards.some(a => !CARDS[a.type].passive);
     html = `<div class="status chaos">¡CAOS! ${who}<br>${can ? '¡Juega una carta YA!' : state.windowPlayed.includes(me) ? 'Ya jugaste tu carta.' : 'Nada que jugar…'}</div>`;
+  } else if (state.phase === 'final') {
+    const can = canPlayNow() && p.cards.some(a => !CARDS[a.type].passive);
+    html = `<div class="status chaos">¡CAOS FINAL! <span class="timer"></span><br>${can ? 'Última carta antes del dealer: ¡úsala!' : state.windowPlayed.includes(me) ? 'Ya jugaste tu carta.' : 'Nada que jugar…'}</div>`;
   } else if (state.phase === 'rescue') {
     html = state.rescuers.includes(me)
       ? `<div class="status rescue">¡ULTIMA OPORTUNIDAD!<br>Usa ARREPENTIMIENTO para salvarte <span class="timer"></span></div>`

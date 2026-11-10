@@ -202,6 +202,8 @@ test('Última oportunidad: pausa antes del dealer si alguien pasado tiene Arrepe
   H(g, 'A').status = 'bust';
   g.turn = { pid: 'B', h: 0 };
   g.stand('B', t); g.stand('X', t);
+  assert.equal(g.phase, 'final', 'primero el caos final');
+  g.tick(t + 10000);
   assert.equal(g.phase, 'rescue');
   assert.match(g.play('B', 'nope', null, t) || '', /No tienes/);
   g.play('A', 'A0', T(null, 0, H(g, 'A').cards[2].id), t);
@@ -279,4 +281,25 @@ test('Partida completa simulada con todas las cartas termina sin errores', () =>
     assert.ok(g.handNo <= 8);
     for (const p of g.players) assert.ok(p.chips >= 0 && p.actions.length <= 5);
   }
+});
+
+test('Caos final: al plantarse el último jugador hay una ventana antes del dealer', () => {
+  const { g, t } = setup({ X: ['10', '7'] }, { A: ['empujon', 'vidente'] });
+  g.stand('A', t); g.stand('B', t);
+  assert.equal(g.turnId, 'X');
+  g.stand('X', t + 100); // nadie pidió carta
+  assert.equal(g.phase, 'final');
+  assert.equal(g.deadline, t + 100 + 3000);
+  g.shoe.push({ k: 'c', r: '9', s: 'h' });
+  assert.equal(g.play('A', 'A0', T('X'), t + 200), null);
+  assert.equal(H(g, 'X').status, 'bust');
+  assert.match(g.play('A', 'A1', null, t + 300), /Ya jugaste/);
+  g.tick(t + 3200);
+  assert.equal(g.phase, 'dealer');
+});
+
+test('Sin cartas jugables no hay caos final', () => {
+  const { g, t } = setup({}, { A: ['escudo'] });
+  g.stand('A', t); g.stand('B', t); g.stand('X', t);
+  assert.equal(g.phase, 'dealer');
 });

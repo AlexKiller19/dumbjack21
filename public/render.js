@@ -500,6 +500,12 @@ function handleEvent(e) {
       S.dealerLook = Math.sign(p.x - 240);
       break;
     }
+    case 'finalChaos': {
+      S.chaosStart = S.time; S.chaosDur = e.dur / 1000;
+      banner('CAOS FINAL!', '#ff5a4a', 3, 1.2); sfx.chaos(); S.shake = Math.max(S.shake, 3);
+      say(['ULTIMA RONDA DE TRAMPAS', 'NADIE TOQUE MIS CARTAS', 'APURENSE, FORASTEROS']);
+      break;
+    }
     case 'window': {
       S.chaosStart = S.time; S.chaosDur = e.dur / 1000;
       if (e.dur > 1000) sfx.chaos();
@@ -813,7 +819,7 @@ function drawChaos(g, st, t) {
     drawText(g, 'ULTIMA OPORTUNIDAD ' + left.toFixed(1), 240, 66, '#7ee08a', { align: 'center', scale: 1, shadow: true });
     return;
   }
-  if (st.phase !== 'window' || S.chaosDur < 1) return;
+  if ((st.phase !== 'window' && st.phase !== 'final') || S.chaosDur < 1) return;
   const left = Math.max(0, S.chaosDur - (t - S.chaosStart));
   const frac = left / S.chaosDur;
   const pulse = Math.sin(t * 20) * 0.5 + 0.5;
@@ -821,7 +827,7 @@ function drawChaos(g, st, t) {
   g.fillRect(0, 0, W, 3); g.fillRect(0, H - 3, W, 3); g.fillRect(0, 0, 3, H); g.fillRect(W - 3, 0, 3, H);
   g.globalAlpha = 1;
   const jx = Math.round((Math.random() - 0.5) * 2);
-  drawText(g, 'CAOS! ' + left.toFixed(1), 240 + jx, 66, '#ff5a4a', { align: 'center', scale: 2, shadow: true });
+  drawText(g, (st.phase === 'final' ? 'CAOS FINAL! ' : 'CAOS! ') + left.toFixed(1), 240 + jx, 66, '#ff5a4a', { align: 'center', scale: 2, shadow: true });
   g.fillStyle = '#1a1014'; g.fillRect(190, 79, 100, 4);
   g.fillStyle = frac < 0.35 ? '#ff5a4a' : '#ffd23f'; g.fillRect(191, 80, Math.round(98 * frac), 2);
   if (Math.floor(left * 2) !== S._lastTick) { S._lastTick = Math.floor(left * 2); if (left > 0.1) sfx.tick(); }

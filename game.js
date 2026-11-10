@@ -288,7 +288,19 @@ class Game {
       return;
     }
     this.turn = null;
-    this.beforeDealer(now);
+    this.finalChaos(now);
+  }
+
+  // Caos final: al terminar el último turno (aunque nadie haya pedido) todos tienen
+  // una última ventana para jugar UNA carta antes de que juegue el dealer.
+  finalChaos(now) {
+    const someoneCan = this.inHand().some(q => q.status !== 'out' && q.connected && q.actions.some(a => !ACTIONS[a.type].passive));
+    if (!someoneCan) return this.beforeDealer(now);
+    this.windowPlayed.clear();
+    this.phase = 'final';
+    const dur = this.opts.chaos * 1000;
+    this.deadline = now + dur;
+    this.ev('finalChaos', { dur });
   }
 
   myTurn(id) { return this.phase === 'turn' && this.turn && this.turn.pid === id && this.curHand() && this.curHand().status === 'playing'; }
@@ -396,7 +408,7 @@ class Game {
     if (def.passive) return 'Esta carta es pasiva: se activa sola';
     if (this.phase === 'turn') {
       if (this.turnId !== id && !def.anytime) return 'Solo puedes jugar en tu turno o en la ventana de caos';
-    } else if (this.phase === 'window') {
+    } else if (this.phase === 'window' || this.phase === 'final') {
       if (this.windowPlayed.has(id)) return 'Ya jugaste una carta en esta ventana';
     } else if (this.phase === 'rescue') {
       if (type !== 'devolver') return 'Ahora solo se puede usar Arrepentimiento';
@@ -434,7 +446,7 @@ class Game {
 
     p.actions.splice(idx, 1);
     p.stats.played++;
-    if (this.phase === 'window') this.windowPlayed.add(id);
+    if (this.phase === 'window' || this.phase === 'final') this.windowPlayed.add(id);
     this.ev('play', { pid: id, card: type, target: tp ? tp.id : null, th: def.target === 'hand' ? (t.h | 0) : null });
 
     switch (type) {
@@ -643,6 +655,7 @@ class Game {
       case 'dealing': this.nextTurn(now); break;
       case 'turn': this.stand(this.turnId, now); break;
       case 'window': this.resolveDeal(now); break;
+      case 'final': this.beforeDealer(now); break;
       case 'rescue': this.startDealer(now); break;
       case 'dealer': this.dealerStep(now); break;
       case 'results': {
@@ -669,7 +682,7 @@ class Game {
       turnTime: this.cfg.turnTime,
       minBet: this.cfg.minBet,
       maxCards: this.cfg.maxCards,
-      windowPlayed: this.phase === 'window' ? [...this.windowPlayed] : [],
+      windowPlayed: (this.phase === 'window' || this.phase === 'final') ? [...this.windowPlayed] : [],
       rescuers: this.phase === 'rescue' ? this.rescuers().map(p => p.id) : [],
       dealer: {
         hand: this.dealer.hand.map((c, i) => (i === 1 && this.dealer.hidden) ? { id: c.id, hidden: true } : c),
