@@ -41,16 +41,17 @@
     <h1 class="logo">DUMB<span>JACK</span>21</h1>
     <p class="tag">Blackjack. Dinamita. Traición.</p>
     <div id="home">
+      <div id="invite" class="hidden"></div>
       <label>TU NOMBRE<input id="name" maxlength="12" placeholder="Forastero" autocomplete="off"></label>
       <button id="btn-create" class="big">CREAR SALA</button>
-      <div class="or">— o únete con un código —</div>
+      <div class="or" id="or-text">— o únete con un código —</div>
       <div class="row">
         <input id="code" maxlength="4" placeholder="ABCD" autocomplete="off">
         <button id="btn-join" class="big alt">UNIRSE</button>
       </div>
     </div>
     <div id="room" class="hidden">
-      <div class="code-label">CÓDIGO DE SALA</div>
+      <div class="code-label">CODIGO DE SALA</div>
       <div id="room-code" class="code"></div>
       <button id="btn-copy" class="mini">COPIAR LINK</button>
       <ul id="players"></ul>
@@ -72,7 +73,7 @@
 
 <div id="rules" class="overlay hidden">
   <div class="panel wide">
-    <h2>CÓMO SE JUEGA</h2>
+    <h2>COMO SE JUEGA</h2>
     <div class="rules-grid">
       <div>
         <h3>LA MANO</h3>
@@ -80,7 +81,7 @@
         <p><b>PEDIR</b> · <b>PLANTARSE</b> · <b>DOBLAR</b> (solo con 2 cartas: dobla la apuesta, recibes 1 carta y te plantas).</p>
         <h3>EL CAOS</h3>
         <p>Cuando alguien pide carta se abre una <b>ventana de 3 segundos</b>: cualquiera puede jugar UNA carta de acción antes de que el dealer reparta. En tu turno también puedes jugar cartas.</p>
-        <h3>ECONOMÍA</h3>
+        <h3>ECONOMIA</h3>
         <p>Empiezas con 2 cartas. +1 para todos cada 2 manos. +1 si ganas con Blackjack natural. +1 si tu sabotaje hace que alguien se pase. Máximo 4.</p>
         <p>8 manos. Gana quien tenga más fichas. Con 0 fichas quedas eliminado.</p>
       </div>

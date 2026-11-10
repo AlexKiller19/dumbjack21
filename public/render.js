@@ -563,7 +563,7 @@ function handleEvent(e) {
         const p = seatPt(r.pid);
         const lbl = r.res === 'win' ? 'GANA +' + r.net : r.res === 'blackjack' ? 'BLACKJACK +' + r.net : r.res === 'push' ? 'EMPATE' : 'PIERDE ' + r.net;
         const col = r.res === 'lose' ? '#ff5a4a' : r.res === 'push' ? '#cccccc' : '#7ee08a';
-        float(lbl, p.x, p.y - 18, col, 1, 3.5, -4);
+        float(lbl, p.x, p.y - 32, col, 1, 3.5, -3);
         if (r.res === 'win' || r.res === 'blackjack') { burst(p.x, p.y, 16, ['#ffd23f', '#f2c14e'], 50, { up: 40 }); mood(r.pid, 'happy', 2.5); }
         if (r.res === 'lose') mood(r.pid, 'sad', 2.5);
         if (r.pid === S.you) mine = r.res;

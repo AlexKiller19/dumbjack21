@@ -16,7 +16,7 @@ const CARDS = {
   escudo:      { name: 'Escudo de Goma', cat: 'defensa', passive: true, desc: 'PASIVA: rebota la próxima Granada o Amnesia que te lancen a un jugador al azar (puede ser el atacante).' },
   abogado:     { name: 'Abogado del Diablo', cat: 'defensa', passive: true, desc: 'PASIVA: si te pasas de 21 (hasta 25), tu límite sube a 25 esta mano. Pierde contra un 21 exacto.' },
 };
-const CAT_NAME = { agresion: 'AGRESIÓN', control: 'MANIPULACIÓN', defensa: 'DEFENSA' };
+const CAT_NAME = { agresion: 'AGRESION', control: 'MANIPULACION', defensa: 'DEFENSA' };
 const EMOTES = ['YEEHAW!', 'JA JA JA', 'NOOO!', 'TRAMPA!', 'GG', 'TE VOY A...'];
 
 let ws = null, me = null, host = null, code = null, state = null, stateAt = 0;
@@ -45,7 +45,7 @@ function connect() {
       updateUI();
     } else if (m.t === 'error') {
       toast(m.msg); sfx.error();
-      if (!state && /No existe/.test(m.msg)) sessionStorage.removeItem('dj21');
+      if (!state && /No existe/.test(m.msg)) { sessionStorage.removeItem('dj21'); setInvite(null); $('code').value = ''; history.replaceState(null, '', location.pathname); }
     }
   };
   ws.onclose = () => { setTimeout(connect, 1200); if (state) toast('Conexión perdida, reconectando…'); };
@@ -232,7 +232,26 @@ function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<'
 // ---------------- lobby / botones ----------------
 $('name').value = (JSON.parse(sessionStorage.getItem('dj21') || 'null') || {}).name || localStorage.getItem('dj21name') || '';
 const qs = new URLSearchParams(location.search).get('sala');
+function setInvite(c) {
+  const on = !!c;
+  $('home').classList.toggle('invited', on);
+  $('invite').classList.toggle('hidden', !on);
+  if (on) {
+    $('code').value = c;
+    $('invite').innerHTML = `¡TE INVITARON A JUGAR!<br>SALA <b>${esc(c)}</b>`;
+    $('btn-join').textContent = 'UNIRSE A LA SALA';
+    $('or-text').textContent = '— o mejor —';
+    $('btn-create').textContent = 'CREAR MI PROPIA SALA';
+  } else {
+    $('btn-join').textContent = 'UNIRSE';
+    $('or-text').textContent = '— o únete con un código —';
+    $('btn-create').textContent = 'CREAR SALA';
+  }
+}
+const invited = qs && /^[A-Za-z]{4}$/.test(qs) && !sessionStorage.getItem('dj21');
 if (qs) $('code').value = qs.toUpperCase();
+setInvite(invited ? qs.toUpperCase() : null);
+if (invited) setTimeout(() => $('name').focus(), 100);
 function nameVal() { const n = $('name').value.trim() || 'Forastero'; localStorage.setItem('dj21name', n); return n; }
 $('btn-create').onclick = () => { initAudio(); sessionStorage.removeItem('dj21'); send({ t: 'create', name: nameVal() }); };
 $('btn-join').onclick = () => {
@@ -243,7 +262,7 @@ $('btn-join').onclick = () => {
   send({ t: 'join', code: c, name: nameVal() });
 };
 $('code').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn-join').click(); });
-$('name').addEventListener('keydown', e => { if (e.key === 'Enter') ($('code').value ? $('btn-join') : $('btn-create')).click(); });
+$('name').addEventListener('keydown', e => { if (e.key === 'Enter') ($('code').value.trim().length === 4 ? $('btn-join') : $('btn-create')).click(); });
 $('btn-start').onclick = () => { initAudio(); send({ t: 'start' }); };
 $('btn-again').onclick = () => send({ t: 'again' });
 $('btn-copy').onclick = async () => {
@@ -288,10 +307,12 @@ function fit() {
   const maxW = (narrow ? window.innerWidth : st.clientWidth) - 24, maxH = st.clientHeight - 24;
   let s = narrow ? maxW / W : Math.min(maxW / W, maxH / H);
   if (s >= 2) s = Math.floor(s * 2) / 2; // escalado limpio
+  s = Math.max(0.5, s);
   cv.style.width = Math.floor(W * s) + 'px';
   cv.style.height = Math.floor(H * s) + 'px';
 }
 window.addEventListener('resize', fit);
+new ResizeObserver(fit).observe($('stage'));
 let last = performance.now();
 function loop(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
