@@ -27,7 +27,7 @@ function tone(freq, dur, type = 'square', vol = 0.3, when = 0, dest = sfxGain, s
 }
 
 let noiseBuf = null;
-function noise(dur, vol = 0.4, when = 0, filterFreq = 2000, type = 'lowpass', sweepTo = 0) {
+function noise(dur, vol = 0.4, when = 0, filterFreq = 2000, type = 'lowpass', sweepTo = 0, dest = sfxGain) {
   if (!ctx) return;
   if (!noiseBuf) {
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
@@ -40,7 +40,7 @@ function noise(dur, vol = 0.4, when = 0, filterFreq = 2000, type = 'lowpass', sw
   if (sweepTo) f.frequency.exponentialRampToValueAtTime(sweepTo, t + dur);
   const g = ctx.createGain();
   g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-  s.connect(f); f.connect(g); g.connect(sfxGain);
+  s.connect(f); f.connect(g); g.connect(dest);
   s.start(t); s.stop(t + dur + 0.02);
 }
 
@@ -74,31 +74,89 @@ export const sfx = {
   error() { tone(150, 0.15, 'square', 0.15); },
 };
 
-// ---- música honky-tonk sencilla ----
+// ---- música honky-tonk dinámica ----
+// La música cambia de "ánimo" según lo que pasa en la mesa. Cada ánimo define tempo,
+// armonía e instrumentos; el cambio entra en el siguiente compás (o de inmediato si es urgente).
 const N = (n) => 440 * Math.pow(2, (n - 69) / 12);
-// progresión I - IV - I - V en Sol
-const CHORDS = [[55, 59, 62], [60, 64, 67], [55, 59, 62], [62, 66, 69]];
-const BASS = [[43, 50], [48, 55], [43, 50], [50, 57]];
-const MEL = [
-  71, 0, 74, 71, 69, 67, 69, 0,  72, 0, 76, 72, 71, 69, 67, 0,
-  71, 74, 79, 78, 76, 74, 71, 0,  69, 71, 72, 74, 72, 69, 66, 0,
-];
+const PROG = {
+  // I - IV - I - V en Sol mayor (alegre)
+  major:   { chords: [[55, 59, 62], [60, 64, 67], [55, 59, 62], [62, 66, 69]], roots: [43, 48, 43, 50] },
+  // i - VI - VII - V en Mi menor (duelo / caos)
+  minor:   { chords: [[52, 55, 59], [48, 52, 55], [50, 54, 57], [47, 51, 54]], roots: [40, 36, 38, 35] },
+  // acordes disminuidos sobre un bajo fijo (suspenso con el dealer)
+  tension: { chords: [[52, 55, 58], [53, 56, 59], [52, 55, 58], [51, 54, 57]], roots: [40, 40, 40, 39] },
+};
+const MEL = {
+  major: [71, 0, 74, 71, 69, 67, 69, 0, 72, 0, 76, 72, 71, 69, 67, 0, 71, 74, 79, 78, 76, 74, 71, 0, 69, 71, 72, 74, 72, 69, 66, 0],
+  minor: [76, 0, 79, 76, 74, 71, 74, 0, 72, 0, 76, 72, 71, 69, 67, 0, 76, 79, 83, 81, 79, 76, 74, 0, 75, 0, 78, 75, 71, 0, 66, 0],
+};
+// bass: 'oompah' (raíz-quinta), 'walk' (caminando), 'gallop' (galope), 'pedal' (nota fija)
+// drums: 0 nada, 1 bombo+caja, 2 todo al doble
+const MOODS = {
+  lobby:  { bpm: 104, prog: 'major', bass: 'oompah', chords: 0.045, mel: 0.06, melEvery: 2, drums: 0, hat: 0 },
+  play:   { bpm: 128, prog: 'major', bass: 'oompah', chords: 0.06, mel: 0.085, melEvery: 2, drums: 0, hat: 0.025 },
+  last:   { bpm: 146, prog: 'major', bass: 'walk', chords: 0.07, mel: 0.1, melEvery: 1, octave: 12, drums: 1, hat: 0.045 },
+  chaos:  { bpm: 156, prog: 'minor', bass: 'gallop', chords: 0.07, mel: 0, ost: 0.07, drums: 1, hat: 0.055 },
+  final:  { bpm: 174, prog: 'minor', bass: 'gallop', chords: 0.08, mel: 0.1, melEvery: 1, octave: 12, ost: 0.06, drums: 2, hat: 0.065 },
+  dealer: { bpm: 108, prog: 'tension', bass: 'pedal', chords: 0.03, mel: 0, drums: 0, hat: 0.035, tick: true },
+};
+let mood = 'lobby', pending = null;
+
+// Cambia el ánimo. urgent = entra ya; si no, al empezar el siguiente compás.
+export function setMusicMood(m, urgent = false) {
+  if (!MOODS[m] || (m === mood && !pending) || m === pending) return;
+  if (urgent) { if (m !== mood) stinger(m); mood = m; pending = null; }
+  else pending = m;
+}
+export function musicMood() { return mood; }
+
+// golpe de platillo + barrido al subir de intensidad
+function stinger(m) {
+  if (!ctx || !musicOn) return;
+  if (m === 'final' || m === 'chaos' || m === 'last') {
+    noise(0.9, 0.35, 0, 7000, 'highpass', 0, musicGain);
+    tone(N(m === 'final' ? 40 : 43), 0.5, 'triangle', 0.6, 0, musicGain, 0.5);
+  }
+}
+
+function drums(d, s, when, beat) {
+  const kick = (w) => { tone(110, 0.18, 'sine', 0.9, w, musicGain, 0.35); };
+  const snare = (w) => { noise(0.12, 0.35, w, 1800, 'bandpass', 0, musicGain); tone(220, 0.06, 'triangle', 0.15, w, musicGain); };
+  if (s === 0 || s === 4) kick(when);
+  if (d >= 2 && (s === 3 || s === 7)) kick(when);
+  if (s === 2 || s === 6) snare(when);
+  if (d >= 2 && s === 7) snare(when + beat / 2);
+}
+
 function startMusic() {
-  const beat = 60 / 132 / 2; // corcheas
   let next = ctx.currentTime + 0.1;
   musicTimer = setInterval(() => {
     while (next < ctx.currentTime + 0.3) {
-      const bar = Math.floor(step / 8) % 4, s = step % 8;
+      const s = step % 8;
+      if (s === 0 && pending) { const m = pending; pending = null; if (m !== mood) { stinger(m); mood = m; } }
+      const M = MOODS[mood], P = PROG[M.prog];
+      const beat = 60 / M.bpm / 2; // corcheas
+      const bar = Math.floor(step / 8) % 4;
       const when = next - ctx.currentTime;
-      if (s % 2 === 0) {
-        const b = BASS[bar][(s / 2) % 2];
-        tone(N(b), beat * 1.6, 'triangle', 0.5, when, musicGain);
-      } else {
-        for (const c of CHORDS[bar]) tone(N(c), beat * 0.6, 'square', 0.06, when, musicGain);
-      }
-      const m = MEL[step % MEL.length];
-      if (m && (Math.floor(step / 32) % 2 === 0)) tone(N(m), beat * 0.9, 'square', 0.09, when, musicGain);
+      const root = P.roots[bar], chord = P.chords[bar];
+      // bajo
+      if (M.bass === 'oompah') { if (s % 2 === 0) tone(N(root + ((s / 2) % 2 ? 7 : 0)), beat * 1.6, 'triangle', 0.5, when, musicGain); }
+      else if (M.bass === 'walk') { if (s % 2 === 0) tone(N(root + [0, 4, 7, 9][s / 2]), beat * 1.7, 'triangle', 0.55, when, musicGain); }
+      else if (M.bass === 'gallop') { if (s % 2 === 0 || s % 4 === 1) tone(N(root + (s >= 4 ? 7 : 0)), beat * 0.8, 'triangle', 0.55, when, musicGain); }
+      else if (M.bass === 'pedal') { if (s === 0 || s === 5) tone(N(root), beat * 3, 'triangle', 0.5, when, musicGain); }
+      // acordes a contratiempo (el "chun" del honky-tonk)
+      if (s % 2 === 1 && M.chords) for (const c of chord) tone(N(c), beat * 0.6, 'square', M.chords, when, musicGain);
+      // ostinato agudo en el caos
+      if (M.ost) tone(N(chord[s % 3] + 24), beat * 0.45, 'square', M.ost * (s % 2 ? 0.7 : 1), when, musicGain);
+      // melodía
+      const mel = MEL[M.prog === 'minor' ? 'minor' : 'major'];
+      const n = mel[step % mel.length];
+      if (M.mel && n && Math.floor(step / 32) % (M.melEvery || 1) === 0) tone(N(n + (M.octave || 0)), beat * 0.9, 'square', M.mel, when, musicGain);
+      // batería y platillos
+      if (M.drums) drums(M.drums, s, when, beat);
+      if (M.hat) noise(0.03, M.hat * (s % 2 ? 1 : 1.6), when, 8000, 'highpass', 0, musicGain);
+      if (M.tick && s % 2 === 0) tone(1800, 0.02, 'square', 0.05, when, musicGain);
       step++; next += beat;
     }
-  }, 50);
+  }, 40);
 }

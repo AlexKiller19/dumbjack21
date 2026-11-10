@@ -97,7 +97,6 @@ const ICONS = {
   carterista: ['..kkkk..', '.kwkkwk.', '.kkkkkk.', '..kkkk..', '...yy...', '..yyyy..', '.yyyyyy.', '..yyyy..'],
   lazo: ['.oooo...', 'o....o..', 'o....o..', '.oooo...', '....o...', '.....o..', '......o.', '.......o'],
   empujon: ['........', '...w....', '...ww...', 'wwwwwww.', 'wwwwwww.', '...ww...', '...w....', '........'],
-  soborno: ['..y.y...', '...y....', '..yyy...', '.yyyyy..', 'yykyyyy.', 'yykkyyy.', '.yyyyy..', '........'],
   carrusel: ['.cccc...', 'c....c.c', 'c.....cc', '.....ccc', 'ccc.....', 'cc.....c', 'c.c....c', '...cccc.'],
   devolver: ['..G.....', '.GG.....', 'GGGGGG..', '.GG...G.', '..G...G.', '......G.', '..GGGG..', '........'],
   abogado: ['r......r', 'rr....rr', '.rrrrrr.', '.r.rr.r.', '.rrrrrr.', '..r..r..', '..rrrr..', '........'],
@@ -604,7 +603,7 @@ function later(ms, fn) { setTimeout(fn, ms); }
 const CARD_NAMES = {
   granada5: 'GRANADA +5', granada10: 'GRANADA +10', amnesia: 'AMNESIA', mantequilla: 'MANO DE MANTEQUILLA',
   espejo: 'ESPEJO CUANTICO', vidente: 'VIDENTE', comunismo: 'COMUNISMO', escudo: 'ESCUDO DE GOMA', abogado: 'ABOGADO DEL DIABLO',
-  carterista: 'CARTERISTA', lazo: 'LAZO', empujon: 'EMPUJON', soborno: 'SOBORNO', carrusel: 'CARRUSEL', devolver: 'ARREPENTIMIENTO',
+  carterista: 'CARTERISTA', lazo: 'LAZO', empujon: 'EMPUJON', carrusel: 'CARRUSEL', devolver: 'ARREPENTIMIENTO',
 };
 
 function handleEvent(e) {
@@ -612,7 +611,13 @@ function handleEvent(e) {
   switch (e.type) {
     case 'join': sfx.door(); say(['BIENVENIDO, {n}', 'PASE, {n}, PASE', 'SIENTATE, {n}. SIN ARMAS'], 2.8, { n: nameOf(e.pid) }, 0); break;
     case 'shuffle': sfx.shuffle(); say(['BARAJANDO...', 'MAZO NUEVO, SUERTE NUEVA'], 2, {}, 0); break;
-    case 'hand': banner('MANO ' + e.n, C.gold, 3, 1.3); say(['HAGAN SUS APUESTAS', 'A VER ESE DINERO', 'APUESTEN, FORASTEROS']); break;
+    case 'hand':
+      if (S.state && e.n >= S.state.maxHands) {
+        banner('ULTIMA MANO!', '#ff5a4a', 3, 2.2); S.shake = Math.max(S.shake, 3); S.flash = { color: '#d6403a', a: 0.3 };
+        say(['ULTIMA MANO, FORASTEROS. TODO O NADA', 'SE ACABA LA NOCHE... APUESTEN FUERTE'], 3.5, {}, 2);
+        patron(['¡ESTA ES LA BUENA!', '¡TODO O NADA!']);
+      } else { banner('MANO ' + e.n, C.gold, 3, 1.3); say(['HAGAN SUS APUESTAS', 'A VER ESE DINERO', 'APUESTEN, FORASTEROS']); }
+      break;
     case 'bet': { const p = avatarPt(e.pid); float('$' + e.amount, p.x + 20, p.y - 20, C.gold); sfx.chip(); if (e.amount >= 500) { say(['¡UY! {n} VA CON TODO', 'ESO SI ES APOSTAR, {n}'], 2.6, { n: nameOf(e.pid) }, 1); patron(['¡ESE TIENE AGALLAS!', 'UUUH!']); } break; }
     case 'deal': S.dealerReachUntil = t + 1.4; break;
     case 'natural': { later(900, () => { const p = handPt(e.pid, e.h); burst(p.x, p.y, 30, ['#ffd23f', '#fff2a8', '#ff7b2e'], 70, { up: 30 }); float('BLACKJACK!', p.x, p.y - 14, '#ffd23f', 2, 2); sfx.blackjack(); mood(e.pid, 'happy', 2); dealerMood('shock'); say(['SUERTE DE PRINCIPIANTE', 'TRAMPOSO...', 'NO PUEDE SER'], 3, {}, 2); patron(['¡SUERTUDO!', '¡BLACKJACK!']); S.cheerUntil = S.time + 1.5; for (let i = 0; i < 5; i++) burst(70 + i * 22, 62, 1, ['#8a5a2b', '#2a2228'], 30, { up: 90, life: 1.6, grav: 160, hat: true }); }); break; }
@@ -712,7 +717,6 @@ function handleEvent(e) {
       float('LE ROBARON!', a.x + 20, a.y - 24, '#b57bff', 1, 2); sfx.reward(); mood(e.target, 'sad'); mood(e.pid, 'happy');
       break;
     }
-    case 'bribe': { const a = avatarPt(e.pid); S.projectiles.push({ type: 'coin', x0: a.x, y0: a.y, x1: 240, y1: 70, t: 0, dur: 0.5 }); sfx.coins(); later(500, () => { dealerMood('laugh', 1.2); say(['NO VI NADA...', 'QUE CARTA? CUAL CARTA?', 'GRACIAS, CABALLERO']); }); break; }
     case 'carousel': { S.spin = 1; sfx.comunismo(); sfx.whoosh(); S.flash = { color: '#9fd4ff', a: 0.35 }; say(['QUE MAREO...', 'OIGAN, ESA ERA MIA!']); dealerMood('shock', 1.5); break; }
     case 'giveback': { const p = handPt(e.pid, e.h); float(e.saved ? 'SE SALVA!' : 'DEVUELVE UNA CARTA', p.x, p.y - 24, '#7ee08a', e.saved ? 2 : 1, 2); sfx.magic(); if (e.saved) { mood(e.pid, 'happy', 2); burst(p.x, p.y, 16, ['#7ee08a', '#fff'], 40, { grav: 0 }); } break; }
     case 'rescue': banner('ULTIMA OPORTUNIDAD', '#7ee08a', 2, 2); sfx.chaos(); break;

@@ -18,7 +18,6 @@ const ACTIONS = {
   vidente:     { w: 2.5 },
   comunismo:   { w: 1.5 },
   carterista:  { w: 2.5, target: 'player' },
-  soborno:     { w: 2 },
   carrusel:    { w: 1.5 },
   devolver:    { w: 2,   target: 'own', anytime: true },
   escudo:      { w: 3,   passive: true },
@@ -484,7 +483,6 @@ class Game {
     }
     if (type === 'comunismo' && this.allHands(false).length < 2) return 'Se necesitan al menos 2 manos';
     if (type === 'carrusel' && this.allHands(false).length < 1) return 'No hay manos que rotar';
-    if (type === 'soborno' && (!this.dealer.hidden || this.dealer.hand.length < 2)) return 'El dealer ya mostró su carta';
 
     p.actions.splice(idx, 1);
     p.stats.played++;
@@ -571,10 +569,6 @@ class Game {
         this.ev('stolen', { to: tp.id, card: stolen.type, by: id });
         break;
       }
-      case 'soborno':
-        this.dealer.hand[1] = this.draw();
-        this.ev('bribe', { pid: id });
-        break;
       case 'carrusel': {
         // cada mano pasa a la izquierda; la del dealer entra por la derecha
         const slots = this.allHands(false);

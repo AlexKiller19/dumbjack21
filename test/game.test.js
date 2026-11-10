@@ -163,14 +163,6 @@ test('Carterista roba una carta de acción', () => {
   assert.equal(g.get('B').actions.length, 0);
 });
 
-test('Soborno cambia la carta oculta del dealer', () => {
-  const { g, t } = setup({}, { A: ['soborno'] });
-  const before = g.dealer.hand[1].id;
-  g.play('A', 'A0', null, t);
-  assert.notEqual(g.dealer.hand[1].id, before);
-  assert.equal(g.view('A', t).dealer.hand[1].hidden, true);
-});
-
 test('Carrusel rota las manos a la izquierda incluyendo al dealer', () => {
   const { g, t } = setup({ A: ['2', '3'], B: ['4', '5'], X: ['6', '7'] }, { A: ['carrusel'] });
   g.play('A', 'A0', null, t);
@@ -322,7 +314,7 @@ test('Comunismo promedia también las manos pasadas', () => {
 });
 
 test('Caos final: ventana antes del dealer y se pueden encadenar cartas', () => {
-  const { g, t } = setup({ X: ['10', '7'] }, { A: ['empujon', 'vidente', 'soborno'], B: ['vidente'] });
+  const { g, t } = setup({ X: ['10', '7'] }, { A: ['empujon', 'vidente', 'mantequilla'], B: ['vidente'] });
   g.stand('A', t); g.stand('B', t);
   g.stand('X', t + 100); // nadie pidió carta
   assert.equal(g.phase, 'final');

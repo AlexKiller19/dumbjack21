@@ -1,4 +1,4 @@
-import { initAudio, sfx, toggleMusic, toggleSfx } from './audio.js';
+import { initAudio, sfx, toggleMusic, toggleSfx, setMusicMood, musicMood } from './audio.js';
 import { W, H, frame, setState, anim, iconCanvas, seatAt, cardAt, SKINS, skinColor, skinName, portrait } from './render.js';
 
 const $ = (id) => document.getElementById(id);
@@ -17,7 +17,6 @@ const CARDS = {
   vidente:     { name: 'Vidente', cat: 'control', desc: 'Ves la carta oculta del dealer y la siguiente del mazo (solo tú, 5 segundos).' },
   comunismo:   { name: 'Comunismo', cat: 'control', desc: 'TODAS las manos (también las pasadas) pasan a valer el promedio, redondeado hacia abajo. Las pasadas pueden revivir.' },
   carterista:  { name: 'Carterista', cat: 'control', target: 'player', desc: 'Le robas una carta de acción al azar a un rival.' },
-  soborno:     { name: 'Soborno', cat: 'control', desc: 'El dealer cambia su carta oculta por la siguiente del mazo. Combina con Vidente.' },
   carrusel:    { name: 'Carrusel', cat: 'control', desc: 'TODAS las manos rotan un lugar a la izquierda, incluidas las pasadas y la del dealer. Si te llega una mano buena, ¡revives!' },
   devolver:    { name: 'Arrepentimiento', cat: 'defensa', target: 'own', desc: 'Devuelves una carta de tu mano, aunque ya te hayas pasado. Se puede usar en cualquier momento de la ronda.' },
   escudo:      { name: 'Escudo de Goma', cat: 'defensa', passive: true, desc: 'PASIVA: rebota la próxima Granada o Amnesia que te lancen a otra mano al azar (puede ser la del atacante).' },
@@ -187,7 +186,21 @@ function fireOwn(h, card) {
 function cancelTarget() { selected = null; anim.targeting = null; anim.pickOwn = false; cv.classList.remove('targeting'); lastHudKey = ''; updateUI(); }
 
 // ---------------- UI ----------------
+// Elige el ánimo de la música según lo que pasa en la mesa.
+// La última mano de la partida es más intensa y el caos de esa mano suena como el caos final.
+function updateMusic() {
+  if (!state || state.phase === 'lobby' || state.phase === 'gameover') return setMusicMood('lobby');
+  const last = state.handNo >= state.maxHands;
+  switch (state.phase) {
+    case 'final': return setMusicMood('final', true);
+    case 'window': if (state.msLeft > 1200) return setMusicMood(last ? 'final' : 'chaos', true); return;
+    case 'dealer': case 'rescue': return setMusicMood('dealer');
+    default: return setMusicMood(last ? 'last' : 'play');
+  }
+}
+
 function updateUI() {
+  updateMusic();
   const inLobby = !state || state.phase === 'lobby';
   $('lobby').classList.toggle('hidden', !inLobby);
   $('hud').classList.toggle('hidden', inLobby);
@@ -462,4 +475,4 @@ requestAnimationFrame(loop);
 connect();
 
 // gancho de depuración
-window.__dj = { get state() { return state; }, get me() { return me; }, anim, send, playCard };
+window.__dj = { get state() { return state; }, get me() { return me; }, anim, send, playCard, musicMood };
