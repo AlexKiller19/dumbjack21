@@ -49,7 +49,7 @@ npm run check        # todo lo anterior: correrlo SIEMPRE antes de publicar
 - `/usr/bin/git` falla porque no se aceptó la licencia de Xcode. Usar
   `/Library/Developer/CommandLineTools/usr/bin/git` (por ejemplo `export PATH=/Library/Developer/CommandLineTools/usr/bin:$PATH`).
 - `swift` y `ffmpeg` no están disponibles.
-- `gh` está autenticado como `AlexKiller19`, pero **sin** el permiso `workflow` (ver §8).
+- `gh` está autenticado como `AlexKiller19` con permiso `workflow` (puede subir cambios a `.github/workflows`).
 
 ---
 
@@ -98,7 +98,7 @@ dumbjack21/
 ├── test/e2e/partida.test.js Partida completa en Chrome.
 ├── tools/bots.js            Bots de prueba por WebSocket.
 ├── eslint.config.js         ESLint 9 (flat config).
-└── .github/workflows/ci.yml Pendiente de subir (ver §8).
+└── .github/workflows/ci.yml GitHub Actions: revisor + pruebas + partida en Chrome en cada push.
 ```
 
 ### Grafo de módulos del cliente (sin ciclos)
@@ -231,9 +231,8 @@ finalChaos rescue reveal dealerHit settle eliminated gameover join leave skin se
 
 ## 8. Pendientes conocidos
 
-1. **Subir `.github/workflows/ci.yml`** (existe localmente, sin commit). GitHub lo rechazó porque `gh` no
-   tiene el permiso `workflow`. El usuario tiene que completar `gh auth refresh -h github.com -s workflow`
-   (responder **Y** y autorizar en el navegador). Después: `git add .github && git commit && git push`.
+1. ~~Subir el workflow de GitHub Actions~~: hecho el 2026-11-10; la primera corrida pasó (revisor, 37
+   pruebas y partida en Chrome).
 2. **Publicación automática:** requiere que el usuario agregue el secreto `RENDER_DEPLOY_HOOK` en GitHub
    (Settings → Secrets → Actions) con el Deploy Hook de Render. Es un secreto: lo hace el usuario, no un
    agente.
