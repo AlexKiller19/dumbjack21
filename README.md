@@ -50,13 +50,16 @@ En `main`, si todo pasa, avisa a Render para publicar. Para activarlo, copia el 
 - `game.js`: reglas (autoritativas en el servidor, sin red). Los parámetros están en `CFG` y los pesos de las cartas en `ACTIONS`.
 - `server.js`: archivos estáticos + WebSocket + salas con código y reconexión.
 - `public/render.js`: orquestador del dibujo (estado de la mesa, animación de cartas, efectos y eventos).
-- `public/scene.js`: el saloon (fondo, mesa, ventana, lámparas, público, barra, pianista).
+- `public/scene.js`: el saloon (fondo, mesa, ventana, lámparas, barra, pianista).
+- `public/npcs.js`: parroquianos de la barra, sus manías, peleas, enterrador y puertas batientes.
 - `public/characters.js`: los 12 personajes y el dealer.
 - `public/dialogue.js`: globos de texto del dealer y el público.
 - `public/pixel.js`: fuente bitmap, iconos y cartas. `public/consts.js` y `public/anim.js`: constantes y estado compartido.
 - `public/audio.js`: efectos y música honky-tonk sintetizados.
 - `public/main.js`: lobby, HUD, controles.
 - `test/`: pruebas de reglas; `test/e2e/`: partida completa en Chrome.
+- `tools/bots.js`: bots de prueba por WebSocket (`node tools/bots.js CODIGO [cantidad] [url]`).
+- `HANDOFF.md`: documentación técnica completa para continuar el proyecto.
 
 ## Atajos
 

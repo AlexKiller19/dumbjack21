@@ -7,7 +7,7 @@ export const S = {
   tumble: -1, hints: { spawn: {}, remove: {} }, time: 0,
   targeting: null,   // [{ pid, h }] manos (h=null: jugador completo)
   pickOwn: false,    // eligiendo una carta propia (Arrepentimiento)
-  brawl: -1, brawlNext: 25, mouse: -1, mouseNext: 12, brokenBottle: null, spin: 0, lastShieldAt: -1,
+  mouse: -1, mouseNext: 12, brokenBottle: null, spin: 0, lastShieldAt: -1,
 };
 
 export const anim = S;

@@ -10,7 +10,7 @@ module.exports = [
     languageOptions: { ecmaVersion: 2022, sourceType: 'module', globals: globals.browser },
   },
   {
-    files: ['*.js', 'test/**/*.js'],
+    files: ['*.js', 'test/**/*.js', 'tools/**/*.js'],
     languageOptions: { ecmaVersion: 2022, sourceType: 'commonjs', globals: globals.node },
   },
   {

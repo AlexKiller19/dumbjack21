@@ -45,7 +45,7 @@ const CFG = {
   abogadoLimit: 25,
 };
 // Opciones que el anfitrión puede cambiar en el lobby
-const SKIN_COUNT = 12; // personajes elegibles (ver SKINS en public/render.js)
+const SKIN_COUNT = 12; // personajes elegibles (ver SKINS en public/characters.js)
 const OPTIONS = { hands: [5, 8, 12], chips: [500, 1000, 2000], chaos: [2, 3, 5] };
 
 function cardValue(c) {
