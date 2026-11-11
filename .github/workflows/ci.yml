@@ -1,0 +1,42 @@
+# Cada push o pull request: revisor de código, pruebas de reglas y una partida completa en Chrome.
+# En pushes a main, si todo pasa y existe el secreto RENDER_DEPLOY_HOOK, se publica en Render.
+name: Pruebas y publicación
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Revisor de código
+        run: npm run lint
+      - name: Pruebas de reglas
+        run: npm test
+      - name: Partida completa en Chrome
+        run: npm run test:e2e
+
+  publicar:
+    needs: pruebas
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Avisar a Render
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "Sin el secreto RENDER_DEPLOY_HOOK: no se publica automáticamente."
+            exit 0
+          fi
+          curl -fsS -X POST "$HOOK" > /dev/null && echo "Publicación solicitada a Render."
