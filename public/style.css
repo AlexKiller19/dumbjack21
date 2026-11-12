@@ -130,6 +130,9 @@ button.skin:not(:disabled):hover { background: rgba(255,255,255,.08); }
 #players li { background: rgba(0,0,0,.3); padding: 8px; display: flex; gap: 8px; align-items: center; border-left: 6px solid; }
 #players li .who { flex: 1; }
 #players li .char { opacity: .7; }
+#players li .kick { padding: 4px 6px; }
+#players li .kick.danger { background: #d6403a; color: #fff8e8; }
+#btn-leave { margin-top: 8px; }
 #options { display: flex; flex-direction: column; gap: 6px; background: rgba(0,0,0,.25); padding: 8px; }
 .opt { display: flex; gap: 6px; align-items: center; }
 .opt span { flex: 1; text-align: left; color: var(--gold); }

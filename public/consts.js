@@ -1,6 +1,12 @@
 // Constantes compartidas: tamaño del lienzo, asientos, zapato de cartas y paleta.
 export const W = 480, H = 256;
 
+// Asientos: x = centro, cy = arriba de las cartas, ay = arriba del avatar.
+// SEATS (2-4 jugadores): placa a la derecha del personaje. SEATS6 (5-6): más juntos, placa debajo.
+export const SEATS6 = [
+  { x: 60, cy: 128, ay: 170 }, { x: 130, cy: 150, ay: 194 }, { x: 204, cy: 162, ay: 208 },
+  { x: 276, cy: 162, ay: 208 }, { x: 350, cy: 150, ay: 194 }, { x: 420, cy: 128, ay: 170 },
+];
 export const SEATS = [{ x: 88, cy: 146, ay: 186 }, { x: 192, cy: 170, ay: 212 }, { x: 288, cy: 170, ay: 212 }, { x: 392, cy: 146, ay: 186 }];
 
 export const CARD_W = 16, CARD_H = 22;

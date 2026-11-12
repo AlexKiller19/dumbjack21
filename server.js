@@ -57,6 +57,17 @@ function attach(ws, room, pid) {
   ws.room = room; ws.pid = pid;
 }
 
+// Saca a un jugador de la sala en el lobby (se sale solo o lo expulsa el anfitrión). Puede volver a entrar.
+function leaveRoom(room, pid, kicked) {
+  room.game.removePlayer(pid, kicked);
+  const ws = room.conns.get(pid);
+  room.conns.delete(pid);
+  for (const [tk, id] of room.tokens) if (id === pid) room.tokens.delete(tk);
+  if (ws) { ws.room = null; ws.pid = null; send(ws, { t: 'left', kicked: !!kicked }); }
+  if (room.host === pid) room.host = [...room.conns.keys()][0] || null;
+  if (!room.conns.size) room.empty = Date.now();
+}
+
 function onMessage(ws, raw) {
   let m; try { m = JSON.parse(raw); } catch { return; }
   if (!m || typeof m.t !== 'string') return;
@@ -107,6 +118,16 @@ function onMessage(ws, raw) {
     case 'again':
       if (pid !== room.host) err = 'Solo el anfitrión puede reiniciar';
       else err = g.backToLobby();
+      break;
+    case 'leave':
+      if (g.phase !== 'lobby') err = 'Solo puedes salirte antes de empezar la partida';
+      else { leaveRoom(room, pid, false); return broadcast(room); }
+      break;
+    case 'kick':
+      if (pid !== room.host) err = 'Solo el anfitrión puede expulsar';
+      else if (g.phase !== 'lobby') err = 'Solo se puede expulsar antes de empezar la partida';
+      else if (m.pid === pid || !g.get(m.pid)) err = 'Ese jugador no está en la sala';
+      else { leaveRoom(room, m.pid, true); return broadcast(room); }
       break;
     case 'sync': return send(ws, { t: 'state', code: room.code, host: room.host, you: pid, state: g.view(pid, now), events: [] });
     case 'clientError':

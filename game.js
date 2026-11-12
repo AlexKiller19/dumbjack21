@@ -32,7 +32,7 @@ const CFG = {
   bonusEvery: 1,       // +1 carta para todos cada mano
   minBet: 50,
   minPlayers: 2,
-  maxPlayers: 4,
+  maxPlayers: 6,
   decks: 4,
   betTime: 15000,
   turnTime: 20000,
@@ -266,10 +266,11 @@ class Game {
     if (!on && this.phase === 'betting') this.maybeAllBet(now);
     if (this.phase !== 'lobby' && this.phase !== 'gameover' && this.alive().length < 1) this.endGame();
   }
-  removePlayer(id) {
+  removePlayer(id, kicked = false) {
     if (this.phase !== 'lobby') return;
+    const p = this.get(id); if (!p) return;
     this.players = this.players.filter(x => x.id !== id);
-    this.ev('leave', { pid: id });
+    this.ev('leave', { pid: id, name: p.name, kicked });
   }
 
   start(now) {
@@ -277,7 +278,8 @@ class Game {
     this.players = this.players.filter(p => p.connected);
     if (this.players.length < this.cfg.minPlayers) return `Se necesitan al menos ${this.cfg.minPlayers} jugadores`;
     // bancos al azar en cada partida, sin importar el orden en que entraron
-    const seats = [0, 1, 2, 3];
+    // con 5 o 6 jugadores la mesa usa 6 asientos más juntos
+    const seats = Array.from({ length: this.players.length > 4 ? 6 : 4 }, (_, i) => i);
     for (let i = seats.length - 1; i > 0; i--) { const j = Math.floor(this.rng() * (i + 1)); [seats[i], seats[j]] = [seats[j], seats[i]]; }
     this.players.forEach((p, i) => { p.seat = seats[i]; });
     this.ev('seats');

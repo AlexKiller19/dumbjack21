@@ -1,5 +1,5 @@
 // Orquestador: recibe el estado del servidor, anima cartas y efectos y dibuja cada cuadro.
-import { C, CARD_H, CARD_W, DEALER_Y, H, SEATS, SHOE, W } from './consts.js';
+import { C, CARD_H, CARD_W, DEALER_Y, H, SEATS as SEATS4, SEATS6, SHOE, W } from './consts.js';
 import { CARD_LINES, drawDealerSay, drawPatronSay, idleChatter, patron, say } from './dialogue.js';
 import { S } from './anim.js';
 import { TABLE, bgCanvas, buildBackground, drawButter, drawLamps, drawMouse, drawPianist, drawSign, drawWanted, drawWindow } from './scene.js';
@@ -9,12 +9,21 @@ import { drawChar, drawDealer, drawTomb, skinColor } from './characters.js';
 import { sfx } from './audio.js';
 import { drawArms, gesture } from './arms.js';
 const key = (pid, h) => pid + ':' + (h || 0);
+// Mesa que se adapta: con 5-6 jugadores (o algún asiento ≥ 4) usa SEATS6, más compacta.
+let SEATS = SEATS4, COMPACT = false;
+function pickSeats(st) {
+  COMPACT = !!st && (st.players.length > 4 || st.players.some(p => p.seat >= 4));
+  SEATS = COMPACT ? SEATS6 : SEATS4;
+}
+// x del centro del personaje: en la mesa compacta va centrado en su asiento, si no a la izquierda de la placa.
+const charX = (seat) => COMPACT ? seat.x : seat.x - 22;
+const handW = (split) => COMPACT ? (split ? 34 : 64) : (split ? 44 : 92);
 
 function playerOf(pid) { return S.state && S.state.players.find(q => q.id === pid); }
 
 function seatOf(pid) { const p = playerOf(pid); return p ? p.seat : -1; }
 
-function handX(p, h) { const n = p.hands.length; return SEATS[p.seat].x + (n > 1 ? (h === 0 ? -26 : 26) : 0); }
+function handX(p, h) { const n = p.hands.length; const o = COMPACT ? 18 : 26; return SEATS[p.seat].x + (n > 1 ? (h === 0 ? -o : o) : 0); }
 
 function handLayout(n, cx, maxW = 92) {
   const gap = n > 1 ? Math.min(10, (maxW - CARD_W) / (n - 1)) : 0;
@@ -28,7 +37,7 @@ function handPt(pid, h) {
   return { x: p.hands.length ? handX(p, hh) : SEATS[p.seat].x, y: SEATS[p.seat].cy + 8 };
 }
 
-function avatarPt(pid) { const s = seatOf(pid); return s < 0 ? { x: 240, y: 60 } : { x: SEATS[s].x - 22, y: SEATS[s].ay + 8 }; }
+function avatarPt(pid) { const s = seatOf(pid); return s < 0 ? { x: 240, y: 60 } : { x: charX(SEATS[s]), y: SEATS[s].ay + 8 }; }
 
 function nameOf(pid) { const p = playerOf(pid); return p ? p.name : '?'; }
 
@@ -38,7 +47,7 @@ export function resetScene() {
 }
 
 export function setState(state, you, events) {
-  S.prev = S.state; S.state = state; S.you = you;
+  S.prev = S.state; S.state = state; S.you = you; pickSeats(state);
   // pistas desde eventos para animar altas/bajas de cartas
   S.hints = { spawn: {}, remove: {} };
   for (const e of events) {
@@ -78,7 +87,7 @@ function layout() {
   // orden de reparto: ronda 1, ronda 2, luego el resto
   const hands = [];
   for (const p of st.players.slice().sort((a, b) => a.seat - b.seat))
-    p.hands.forEach((hd, h) => hands.push({ p, h, hd, lay: handLayout(hd.cards.length, handX(p, h), p.hands.length > 1 ? 44 : 92) }));
+    p.hands.forEach((hd, h) => hands.push({ p, h, hd, lay: handLayout(hd.cards.length, handX(p, h), handW(p.hands.length > 1)) }));
   const maxLen = Math.max(st.dealer.hand.length, ...hands.map(x => x.hd.cards.length), 0);
   const dl = handLayout(st.dealer.hand.length, 240, 120);
   for (let i = 0; i < maxLen; i++) {
@@ -128,6 +137,10 @@ function handleEvent(e) {
   const t = S.time;
   switch (e.type) {
     case 'join': sfx.door(); say(['BIENVENIDO, {n}', 'PASE, {n}, PASE', 'SIENTATE, {n}. SIN ARMAS'], 2.8, { n: nameOf(e.pid) }, 0); break;
+    case 'leave':
+      if (e.kicked) { sfx.door(); say(['¡FUERA DE MI SALOON, {n}!', 'Y NO REGRESES, {n}... BUENO, SI QUIERES SI'], 2.8, { n: e.name || '?' }, 1); patron(['¡AFUERA!', '¡ADIOS, ADIOS!']); }
+      else say(['HASTA LUEGO, {n}', 'SE NOS VA {n}'], 2.2, { n: e.name || '?' }, 0);
+      break;
     case 'shuffle': sfx.shuffle(); say(['BARAJANDO...', 'MAZO NUEVO, SUERTE NUEVA'], 2, {}, 0); break;
     case 'hand':
       if (S.state && e.n >= S.state.maxHands) {
@@ -345,8 +358,8 @@ export function frame(g, dt) {
     for (const tg of S.targeting) {
       const p = playerOf(tg.pid); if (!p) continue;
       g.globalAlpha = a; g.strokeStyle = '#ff5a4a'; g.lineWidth = 2;
-      if (tg.h == null) g.strokeRect(SEATS[p.seat].x - 34, SEATS[p.seat].ay - 5, 76, 30);
-      else { const hp = handPt(p.id, tg.h); const w = p.hands.length > 1 ? 50 : 96; g.strokeRect(hp.x - w / 2, SEATS[p.seat].cy - 14, w, 42); }
+      if (tg.h == null) { const sx = SEATS[p.seat]; if (COMPACT) g.strokeRect(sx.x - 28, sx.ay - 5, 56, 45); else g.strokeRect(sx.x - 34, sx.ay - 5, 76, 30); }
+      else { const hp = handPt(p.id, tg.h); const w = handW(p.hands.length > 1) + 4; g.strokeRect(hp.x - w / 2, SEATS[p.seat].cy - 14, w, 42); }
       g.globalAlpha = 1;
     }
   }
@@ -419,27 +432,29 @@ function drawPill(g, x, y, text, col = C.white, bg = 'rgba(20,10,5,0.8)') {
 }
 
 function drawSeat(g, p, st, t) {
-  const seat = SEATS[p.seat], x = seat.x, top = seat.ay;
+  const seat = SEATS[p.seat], x = seat.x, top = seat.ay, cx = charX(seat);
   const col = skinColor(p);
   const md = S.moods[p.id] && t < S.moods[p.id].until ? S.moods[p.id].m : null;
   const allBust = p.hands.length && p.hands.every(h => h.status === 'bust');
   const m = md || (allBust ? 'bust' : (st.turnId === p.id ? 'turn' : 'idle'));
-  if (p.status === 'out') drawTomb(g, x - 22, top - 2);
-  else drawChar(g, p.skin, x - 22, top - 2, t, m, !p.connected);
+  if (p.status === 'out') drawTomb(g, cx, top - 2);
+  else drawChar(g, p.skin, cx, top - 2, t, m, !p.connected);
   const isMe = p.id === S.you;
   // placa con nombre y fichas
   const nw = Math.max(textWidth((isMe ? '>' : '') + p.name), textWidth('$' + p.chips)) + 5;
-  g.fillStyle = 'rgba(20,10,5,0.6)'; g.fillRect(x - 13, top - 1, nw, 17);
-  drawText(g, (isMe ? '>' : '') + p.name, x - 11, top + 1, col, { outline: false });
-  drawText(g, '$' + p.chips, x - 11, top + 9, '#ffd23f', { outline: false });
+  const plX = COMPACT ? Math.round(x - nw / 2) : x - 13, plY = COMPACT ? top + 21 : top - 1;
+  g.fillStyle = 'rgba(20,10,5,0.6)'; g.fillRect(plX, plY, nw, 17);
+  drawText(g, (isMe ? '>' : '') + p.name, plX + 2, plY + 2, col, { outline: false });
+  drawText(g, '$' + p.chips, plX + 2, plY + 10, '#ffd23f', { outline: false });
   // brazos encima de la placa: así los gestos de la mano derecha no quedan tapados
   const n = Array.isArray(p.cards) ? p.cards.length : p.cards;
-  if (p.status !== 'out') drawArms(g, p.id, p.skin, x - 22, top - 2, t, m, !p.connected, n, m === 'idle' && p.connected);
-  if (!p.connected && p.status !== 'out') drawText(g, 'ZZZ', x - 22, top - 8 - (t * 4 % 4), '#aaa', { align: 'center' });
+  if (p.status !== 'out') drawArms(g, p.id, p.skin, cx, top - 2, t, m, !p.connected, n, m === 'idle' && p.connected);
+  if (!p.connected && p.status !== 'out') drawText(g, 'ZZZ', cx, top - 8 - (t * 4 % 4), '#aaa', { align: 'center' });
   // apuesta total
   const bet = p.hands.length ? p.hands.reduce((a, h) => a + h.bet, 0) : p.bet;
   if (bet > 0) {
-    const bx = x + (p.seat < 2 ? -1 : 1) * (p.hands.length > 1 ? 0 : 44), by = seat.cy + (p.hands.length > 1 ? 36 : 14);
+    let bx = x + (x < 240 ? -1 : 1) * (p.hands.length > 1 ? 0 : 44), by = seat.cy + (p.hands.length > 1 ? 36 : 14);
+    if (COMPACT) { bx = x + 20; by = top + 10; } // a la derecha del personaje
     const chips = Math.min(6, Math.ceil(bet / 100));
     for (let i = 0; i < chips; i++) {
       g.fillStyle = '#1a1014'; g.fillRect(bx - 4, by - i * 2, 9, 3);
@@ -582,7 +597,7 @@ function drawBubbles(g, dt) {
     const b = S.bubbles[i]; b.life += dt;
     if (b.life > b.max) { S.bubbles.splice(i, 1); continue; }
     const s = seatOf(b.pid); if (s < 0) continue;
-    const x = SEATS[s].x - 22, y = Math.round(SEATS[s].ay - 16 - Math.min(1, b.life * 8) * 2);
+    const x = charX(SEATS[s]), y = Math.round(SEATS[s].ay - 16 - Math.min(1, b.life * 8) * 2);
     const w = textWidth(b.text) + 8;
     const bx = Math.round(Math.max(2, Math.min(W - w - 2, x - w / 2)));
     g.fillStyle = C.black; g.fillRect(bx - 1, y - 1, w + 2, 11);
@@ -597,10 +612,11 @@ export function seatAt(x, y) {
   for (const p of S.state.players) {
     const seat = SEATS[p.seat];
     for (let h = 0; h < p.hands.length; h++) {
-      const hx = handX(p, h), w = p.hands.length > 1 ? 50 : 96;
+      const hx = handX(p, h), w = handW(p.hands.length > 1) + 4;
       if (Math.abs(x - hx) < w / 2 && y > seat.cy - 16 && y < seat.cy + 30) return { pid: p.id, h };
     }
-    if (x > seat.x - 36 && x < seat.x + 44 && y > seat.ay - 6 && y < seat.ay + 28) return { pid: p.id, h: null };
+    const [x0, x1, y1] = COMPACT ? [seat.x - 28, seat.x + 28, seat.ay + 40] : [seat.x - 36, seat.x + 44, seat.ay + 28];
+    if (x > x0 && x < x1 && y > seat.ay - 6 && y < y1) return { pid: p.id, h: null };
   }
   return null;
 }

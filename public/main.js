@@ -27,6 +27,7 @@ const CARDS = {
   abogado:     { name: 'Abogado del Diablo', cat: 'defensa', passive: true, desc: 'PASIVA: si te pasas de 21 (hasta 25), tu límite sube a 25 esa mano. Pierde contra un 21 exacto.' },
 };
 const CAT_NAME = { agresion: 'AGRESION', control: 'CONTROL', defensa: 'DEFENSA' };
+const MAX_PLAYERS = 6;
 const EMOTES = ['YEEHAW!', 'JA JA JA', 'NOOO!', 'TRAMPA!', 'GG', 'TE VOY A...'];
 const OPTS = [
   { key: 'hands', label: 'MANOS', values: [5, 8, 12], fmt: v => v },
@@ -124,6 +125,13 @@ function handleMessage(m) {
       }
       onEvents(m.events);
       updateUI();
+    } else if (m.t === 'left') {
+      // te saliste o el anfitrión te expulsó: volver a la pantalla de inicio
+      sessionStorage.removeItem('dj21'); setInvite(null); history.replaceState(null, '', location.pathname);
+      state = null; code = null; me = null; host = null; selected = null; lastHudKey = '';
+      resetScene(); updateUI();
+      if (m.kicked) { toast('El anfitrión te sacó de la sala. Puedes volver a entrar con el código.'); sfx.error(); }
+      else toast('Saliste de la sala');
     } else if (m.t === 'error') {
       if (/No existe/.test(m.msg)) {
         // la sala ya no existe (p. ej. el servidor se reinició): volver a la pantalla de inicio
@@ -317,12 +325,18 @@ function renderLobby() {
   $('room').classList.toggle('hidden', !state);
   if (!state) return;
   $('room-code').textContent = code;
+  const isHost = me === host;
   $('players').innerHTML = state.players.slice().sort((a, b) => a.seat - b.seat).map(p => `
     <li style="border-color:${skinColor(p)}">
       <span class="who">${esc(p.name)}${p.id === me ? ' (TU)' : ''}${p.id === host ? ' 👑' : ''}</span>
       <span class="char">${skinName(p)}</span>
-    </li>`).join('') + Array.from({ length: 4 - state.players.length }, () => `<li style="border-color:#555"><span class="who muted">Silla vacía…</span></li>`).join('');
-  const isHost = me === host;
+      ${isHost && p.id !== me ? `<button class="mini kick" data-pid="${esc(p.id)}" title="Sacar de la sala">EXPULSAR</button>` : ''}
+    </li>`).join('') + Array.from({ length: MAX_PLAYERS - state.players.length }, () => `<li style="border-color:#555"><span class="who muted">Silla vacía…</span></li>`).join('');
+  $('players').querySelectorAll('.kick').forEach(b => b.onclick = () => {
+    const p = state.players.find(q => q.id === b.dataset.pid); if (!p) return;
+    if (b.dataset.armed) { sfx.click(); send({ t: 'kick', pid: p.id }); return; }
+    b.dataset.armed = '1'; b.textContent = '¿SEGURO?'; b.classList.add('danger'); // segundo clic confirma
+  });
   const n = state.players.length;
   renderSkins($('room-skins'), true);
   $('options').innerHTML = OPTS.map(o => `<div class="opt"><span>${o.label}</span>${o.values.map(v =>
@@ -498,6 +512,7 @@ $('code').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn-join'
 renderSkins($('skins'), false);
 $('name').addEventListener('keydown', e => { if (e.key === 'Enter') ($('code').value.trim().length === 4 ? $('btn-join') : $('btn-create')).click(); });
 $('btn-start').onclick = () => { initAudio(); send({ t: 'start' }); };
+$('btn-leave').onclick = () => { sfx.click(); send({ t: 'leave' }); };
 $('btn-again').onclick = () => send({ t: 'again' });
 $('btn-copy').onclick = async () => {
   const url = `${location.origin}${location.pathname}?sala=${code}`;

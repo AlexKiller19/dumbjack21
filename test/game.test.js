@@ -411,3 +411,31 @@ test('El historial narra las jugadas sin revelar secretos', () => {
   assert.ok(!lines.some(l => /Escudo/.test(l) && /roba/.test(l)), 'no dice qué carta robó');
   assert.ok(g.view('A', t).log.every(l => l.i && l.k), 'cada línea tiene número y tipo');
 });
+
+test('Hasta 6 jugadores: el séptimo no entra', () => {
+  const g = new Game();
+  for (let i = 0; i < 6; i++) assert.strictEqual(g.addPlayer('P' + i, 'P' + i, i), null);
+  assert.match(g.addPlayer('P6', 'P6', 6), /llena/);
+});
+
+test('Con 4 jugadores se usan los asientos 0-3; con 5 o 6, los asientos 0-5 sin repetir', () => {
+  for (const n of [4, 5, 6]) {
+    const g = new Game();
+    for (let i = 0; i < n; i++) g.addPlayer('P' + i, 'P' + i, i);
+    assert.strictEqual(g.start(0), null);
+    const seats = g.players.map(p => p.seat);
+    assert.strictEqual(new Set(seats).size, n);
+    assert.ok(seats.every(s => s >= 0 && s < (n > 4 ? 6 : 4)));
+  }
+});
+
+test('Salir o ser expulsado en el lobby saca al jugador y avisa con el evento leave', () => {
+  const g = new Game();
+  g.addPlayer('A', 'Ana', 0); g.addPlayer('B', 'Beto', 1);
+  g.drain();
+  g.removePlayer('B', true);
+  assert.strictEqual(g.players.length, 1);
+  const ev = g.drain().find(e => e.type === 'leave');
+  assert.deepStrictEqual([ev.pid, ev.name, ev.kicked], ['B', 'Beto', true]);
+  assert.strictEqual(g.addPlayer('B2', 'Beto', 1), null); // puede volver a entrar
+});

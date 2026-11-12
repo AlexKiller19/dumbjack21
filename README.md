@@ -1,6 +1,6 @@
 # DumbJack21
 
-Blackjack de sabotaje multijugador (2 a 4 jugadores) en un saloon del viejo oeste en pixel art. Corre en el navegador.
+Blackjack de sabotaje multijugador (2 a 6 jugadores) en un saloon del viejo oeste en pixel art. Corre en el navegador.
 
 **Jugar en línea:** https://dumbjack21.onrender.com
 

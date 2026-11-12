@@ -7,7 +7,7 @@ Actualizado: 2026-11-10 · último commit publicado: `53e8eae`.
 
 ## 1. Qué es
 
-Blackjack multijugador en línea (2 a 4 jugadores + dealer) con **cartas de acción para sabotear** a los
+Blackjack multijugador en línea (2 a 6 jugadores + dealer) con **cartas de acción para sabotear** a los
 rivales. Estética **pixel art de saloon del viejo oeste**, todo dibujado y sonorizado con código (no hay
 imágenes ni audios). Corre en el navegador; el servidor es Node con WebSockets.
 
@@ -142,6 +142,8 @@ lobby → betting → dealing → turn ⇄ window → … → final → (rescue)
 | `join` | `code, name, skin, token?` | Con `token` reconecta a su lugar. |
 | `start` / `again` | — | Solo el anfitrión. `start` sortea los bancos. |
 | `opt` | `key: hands\|chips\|chaos, value` | Solo anfitrión, en el lobby (`OPTIONS`). |
+| `leave` | — | Solo en el lobby. El servidor responde `left`; el anfitrión pasa al siguiente. Puede volver a entrar. |
+| `kick` | `pid` | Solo el anfitrión, en el lobby. Al expulsado le llega `left { kicked: true }`; puede volver a entrar. |
 | `skin` | `skin` (0-11) | Personajes únicos por sala, solo en el lobby. |
 | `bet` | `amount` | Se acota entre la apuesta mínima y tus fichas. |
 | `hit` / `stand` / `double` / `split` | — | Solo en tu turno. |
@@ -151,7 +153,7 @@ lobby → betting → dealing → turn ⇄ window → … → final → (rescue)
 | `clientError` | `where, msg, phase` | Se escribe en el log del servidor. |
 
 ### Mensajes servidor → cliente
-`joined { code, you, token, host }` · `state { code, host, you, state, events }` · `error { msg }`.
+`joined { code, you, token, host }` · `state { code, host, you, state, events }` · `left { kicked }` · `error { msg }`.
 El cliente guarda `{ code, token, name }` en `sessionStorage` para reconectarse.
 
 ### Salas y conexiones
@@ -208,7 +210,10 @@ finalChaos rescue reveal dealerHit settle eliminated gameover join leave skin se
 - **Fuente bitmap del lienzo** (`pixel.js`): solo MAYÚSCULAS, números y algunos signos (`¡¿!?.,:+-/$%#*=()<>'`).
   `drawText` quita acentos y convierte Ñ→N. Glifos que no existen salen como `?`.
 - **Fuente del HTML:** "Press Start 2P" de Google Fonts; usar solo tamaños múltiplos de 8 px.
-- **Asientos:** `SEATS[seat]` da `x` (centro), `cy` (arriba de las cartas) y `ay` (arriba del avatar).
+- **Asientos:** `SEATS[seat]` da `x` (centro), `cy` (arriba de las cartas) y `ay` (arriba del avatar). La mesa se adapta
+  (`pickSeats` en `render.js`): con 2-4 jugadores usa `SEATS` (placa a la derecha del personaje); con 5-6, o si algún
+  asiento es ≥ 4, usa `SEATS6` (`COMPACT`: personaje centrado, placa debajo, manos más angostas con `handW`, fichas a
+  la derecha del personaje). `game.start()` sortea los bancos entre 0-3 o 0-5 según cuántos jueguen (máx. 6, `CFG.maxPlayers`).
 - **Orden de dibujo** en `frame()`: fondo → ventana, letrero, WANTED → parroquianos (`drawNPCs`, incluye
   puertas y barra) → pianista → dealer (recortado detrás de la mesa) → lámparas, ratón → asientos → cartas
   → etiquetas de mano → cartas que salen → proyectiles, partículas → globos → banner de caos → textos.
