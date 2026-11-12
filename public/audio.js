@@ -48,6 +48,7 @@ export const sfx = {
   card() { noise(0.06, 0.25, 0, 3500, 'highpass'); },
   chip() { tone(1800, 0.05, 'square', 0.12); tone(2400, 0.06, 'square', 0.1, 0.04); },
   coins() { for (let i = 0; i < 6; i++) tone(1500 + Math.random() * 1500, 0.06, 'square', 0.08, i * 0.05); },
+  knock() { tone(150, 0.05, 'square', 0.12); noise(0.05, 0.25, 0, 700); },
   click() { tone(900, 0.04, 'square', 0.12); },
   hover() { tone(1300, 0.02, 'square', 0.04); },
   tick() { tone(1200, 0.03, 'square', 0.1); },

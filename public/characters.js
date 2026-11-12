@@ -20,12 +20,16 @@ export const skinColor = (p) => (SKINS[p && p.skin] || SKINS[0]).color;
 
 export const skinName = (p) => (SKINS[p && p.skin] || SKINS[0]).name;
 
+// Balanceo vertical del cuerpo (lo usan también los brazos para mover los hombros).
+export function charBob(skin, mood, t) {
+  if (skin === 8) return Math.round(Math.sin(t * 3 + skin) * 2) - 1;
+  return mood === 'happy' ? -Math.abs(Math.sin(t * 12)) * 3 : mood === 'turn' ? Math.round(Math.sin(t * 6)) : Math.round(Math.sin(t * 2 + skin) * 0.6);
+}
+
 export function drawChar(g, skin, cx, top, t, mood, dim) {
   const S0 = SKINS[skin] || SKINS[0];
   const ghost = skin === 8;
-  const bob = ghost ? Math.round(Math.sin(t * 3 + skin) * 2) - 1
-    : mood === 'happy' ? -Math.abs(Math.sin(t * 12)) * 3 : mood === 'turn' ? Math.round(Math.sin(t * 6)) : Math.round(Math.sin(t * 2 + skin) * 0.6);
-  const y = Math.round(top + bob);
+  const y = Math.round(top + charBob(skin, mood, t));
   const x = cx - 8;
   const base = dim ? 0.45 : ghost ? 0.85 : 1;
   g.globalAlpha = base;
@@ -122,7 +126,6 @@ export function drawChar(g, skin, cx, top, t, mood, dim) {
       for (const [sx, sy] of [[2, 8], [13, 7], [2, 12], [13, 12], [5, 15], [10, 15]]) px(g, x + sx, y + sy, 1, 1, '#f4ecd8');
       px(g, x - 2, y + 4, 20, 2, '#d4a017'); px(g, x + 4, y, 8, 5, '#e8c03a'); px(g, x + 4, y + 3, 8, 1, '#c0392b');
       px(g, x + 12, y + 6, 3, 3, '#ff6fae'); px(g, x + 13, y + 7, 1, 1, '#ffd23f');
-      px(g, x - 1, y + 15, 3, 5, S0.body); px(g, x + 14, y + 13, 3, 5, S0.body);
       break;
     case 11: // Burro: orejas largas, hocico claro, mechón
       px(g, x + 3, y - 4, 3, 10, S0.tone); px(g, x + 10, y - 4, 3, 10, S0.tone);

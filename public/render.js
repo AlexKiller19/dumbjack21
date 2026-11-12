@@ -7,6 +7,7 @@ import { updateNPCs, drawNPCs } from './npcs.js';
 import { drawCard, drawText, textWidth } from './pixel.js';
 import { drawChar, drawDealer, drawTomb, skinColor } from './characters.js';
 import { sfx } from './audio.js';
+import { drawArms, gesture } from './arms.js';
 const key = (pid, h) => pid + ':' + (h || 0);
 
 function playerOf(pid) { return S.state && S.state.players.find(q => q.id === pid); }
@@ -135,7 +136,7 @@ function handleEvent(e) {
         patron(['¡ESTA ES LA BUENA!', '¡TODO O NADA!']);
       } else { banner('MANO ' + e.n, C.gold, 3, 1.3); say(['HAGAN SUS APUESTAS', 'A VER ESE DINERO', 'APUESTEN, FORASTEROS']); }
       break;
-    case 'bet': { const p = avatarPt(e.pid); float('$' + e.amount, p.x + 20, p.y - 20, C.gold); sfx.chip(); if (e.amount >= 500) { say(['¡UY! {n} VA CON TODO', 'ESO SI ES APOSTAR, {n}'], 2.6, { n: nameOf(e.pid) }, 1); patron(['¡ESE TIENE AGALLAS!', 'UUUH!']); } break; }
+    case 'bet': { if (!e.auto) gesture(e.pid, 'bet'); const p = avatarPt(e.pid); float('$' + e.amount, p.x + 20, p.y - 20, C.gold); sfx.chip(); if (e.amount >= 500) { say(['¡UY! {n} VA CON TODO', 'ESO SI ES APOSTAR, {n}'], 2.6, { n: nameOf(e.pid) }, 1); patron(['¡ESE TIENE AGALLAS!', 'UUUH!']); } break; }
     case 'deal': S.dealerReachUntil = t + 1.4; break;
     case 'natural': { later(900, () => { const p = handPt(e.pid, e.h); burst(p.x, p.y, 30, ['#ffd23f', '#fff2a8', '#ff7b2e'], 70, { up: 30 }); float('BLACKJACK!', p.x, p.y - 14, '#ffd23f', 2, 2); sfx.blackjack(); mood(e.pid, 'happy', 2); dealerMood('shock'); say(['SUERTE DE PRINCIPIANTE', 'TRAMPOSO...', 'NO PUEDE SER'], 3, {}, 2); patron(['¡SUERTUDO!', '¡BLACKJACK!']); S.cheerUntil = S.time + 1.5; for (let i = 0; i < 5; i++) burst(70 + i * 22, 62, 1, ['#8a5a2b', '#2a2228'], 30, { up: 90, life: 1.6, grav: 160, hat: true }); }); break; }
     case 'turn': {
@@ -171,18 +172,19 @@ function handleEvent(e) {
       break;
     }
     case 'window': {
-      S.chaosStart = S.time; S.chaosDur = e.dur / 1000;
+      S.chaosStart = S.time; S.chaosDur = e.dur / 1000; gesture(e.pid, e.double ? 'double' : 'knock');
       if (e.dur > 1000) { sfx.chaos(); say(['¿OTRA CARTA, {n}?', 'A VER QUE SALE...', 'ATENTOS, QUE {n} PIDE'], 2.4, { n: nameOf(e.pid) }, 0); }
       if (e.double) float('DOBLA!', handPt(e.pid, e.h).x, handPt(e.pid, e.h).y - 24, '#9fd4ff', 2);
       break;
     }
     case 'double': sfx.chip(); say(['DOBLE O NADA, ¡VALIENTE!', 'ESO ES TENER AGALLAS, {n}'], 2.6, { n: nameOf(e.pid) }, 1); break;
-    case 'split': { const p = handPt(e.pid, 0); float('DIVIDE!', SEATS[seatOf(e.pid)].x, p.y - 26, '#9fd4ff', 2, 1.4); sfx.chip(); sfx.card(); say(['DOS MANOS, DOBLE PROBLEMA', 'PARTIR LA MANO, ¿EH, {n}?'], 2.6, { n: nameOf(e.pid) }, 1); break; }
+    case 'split': { gesture(e.pid, 'split'); const p = handPt(e.pid, 0); float('DIVIDE!', SEATS[seatOf(e.pid)].x, p.y - 26, '#9fd4ff', 2, 1.4); sfx.chip(); sfx.card(); say(['DOS MANOS, DOBLE PROBLEMA', 'PARTIR LA MANO, ¿EH, {n}?'], 2.6, { n: nameOf(e.pid) }, 1); break; }
     case 'hit': S.dealerReachUntil = t + 0.5; if (e.butter) { const p = handPt(e.pid, e.h); float('RESBALON! 2 CARTAS', p.x, p.y - 22, '#ffd23f', 1, 2); sfx.slip(); } break;
-    case 'stand': if (!e.auto) { const p = handPt(e.pid, e.h); float('ME PLANTO', p.x, p.y - 22, '#9fd8b4'); say(['{n} SE PLANTA', 'PRUDENTE, {n}', '¿YA? ¿TAN RAPIDO, {n}?'], 2.2, { n: nameOf(e.pid) }, 0); } sfx.click(); break;
+    case 'stand': if (!e.auto) { gesture(e.pid, 'stand'); const p = handPt(e.pid, e.h); float('ME PLANTO', p.x, p.y - 22, '#9fd8b4'); say(['{n} SE PLANTA', 'PRUDENTE, {n}', '¿YA? ¿TAN RAPIDO, {n}?'], 2.2, { n: nameOf(e.pid) }, 0); } sfx.click(); break;
     case 'play': {
-      const from = avatarPt(e.pid);
-      float(CARD_NAMES[e.card] + '!', from.x + 20, from.y - 26, skinColor(playerOf(e.pid)), 1, 1.8, -10);
+      const av = avatarPt(e.pid), from = { x: av.x + 7, y: av.y - 2 }; // sale de la mano alzada
+      gesture(e.pid, ['granada5', 'granada10', 'amnesia', 'lazo', 'empujon'].includes(e.card) && e.target ? 'throw' : 'show');
+      float(CARD_NAMES[e.card] + '!', av.x + 20, av.y - 26, skinColor(playerOf(e.pid)), 1, 1.8, -10);
       banner(CARD_NAMES[e.card], '#ffd23f', 2, 1.2);
       if (e.target === e.pid && e.card.startsWith('granada')) say(['¿DINAMITA A TI MISMO? ¡ESTAS LOCO!', 'NUNCA HABIA VISTO ESO'], 2.8, {}, 1);
       else if (CARD_LINES[e.card]) say(CARD_LINES[e.card], 2.8, { n: nameOf(e.pid), t: e.target ? nameOf(e.target) : '' }, 1);
@@ -430,13 +432,9 @@ function drawSeat(g, p, st, t) {
   g.fillStyle = 'rgba(20,10,5,0.6)'; g.fillRect(x - 13, top - 1, nw, 17);
   drawText(g, (isMe ? '>' : '') + p.name, x - 11, top + 1, col, { outline: false });
   drawText(g, '$' + p.chips, x - 11, top + 9, '#ffd23f', { outline: false });
-  // cartas de acción (dorsos pequeños)
+  // brazos encima de la placa: así los gestos de la mano derecha no quedan tapados
   const n = Array.isArray(p.cards) ? p.cards.length : p.cards;
-  for (let i = 0; i < n; i++) {
-    const cx = x - 11 + i * 7, cy = top + 18;
-    g.fillStyle = '#1a1014'; g.fillRect(cx - 1, cy - 1, 6, 8);
-    g.fillStyle = '#7a3fa0'; g.fillRect(cx, cy, 4, 6); g.fillStyle = '#ffd23f'; g.fillRect(cx + 1, cy + 2, 2, 2);
-  }
+  if (p.status !== 'out') drawArms(g, p.id, p.skin, x - 22, top - 2, t, m, !p.connected, n, m === 'idle' && p.connected);
   if (!p.connected && p.status !== 'out') drawText(g, 'ZZZ', x - 22, top - 8 - (t * 4 % 4), '#aaa', { align: 'center' });
   // apuesta total
   const bet = p.hands.length ? p.hands.reduce((a, h) => a + h.bet, 0) : p.bet;

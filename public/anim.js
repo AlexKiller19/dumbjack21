@@ -7,6 +7,7 @@ export const S = {
   tumble: -1, hints: { spawn: {}, remove: {} }, time: 0,
   targeting: null,   // [{ pid, h }] manos (h=null: jugador completo)
   pickOwn: false,    // eligiendo una carta propia (Arrepentimiento)
+  gestures: {}, idleNext: {}, idleLast: {}, // brazos de los jugadores (arms.js)
   mouse: -1, mouseNext: 12, brokenBottle: null, spin: 0, lastShieldAt: -1,
 };
 

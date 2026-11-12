@@ -88,6 +88,7 @@ dumbjack21/
 │   ├── scene.js       Saloon estático/animado: fondo, mesa, ventana día→noche, lámparas, barra, piano.
 │   ├── npcs.js        Parroquianos de la barra, sus manías, peleas, enterrador, puertas batientes.
 │   ├── characters.js  SKINS (12 personajes), drawChar, drawDealer, drawTomb, portrait().
+│   ├── arms.js        Brazos de los jugadores: reposo, abanico de cartas, gestos por jugada y de espera.
 │   ├── dialogue.js    Globos de texto: say() del dealer, patron() del público, charla de fondo.
 │   ├── pixel.js       Fuente bitmap 3x5, iconos de cartas, drawCard, px().
 │   ├── audio.js       Efectos (sfx.*) y música dinámica sintetizada con WebAudio.
@@ -212,6 +213,12 @@ finalChaos rescue reveal dealerHit settle eliminated gameover join leave skin se
   puertas y barra) → pianista → dealer (recortado detrás de la mesa) → lámparas, ratón → asientos → cartas
   → etiquetas de mano → cartas que salen → proyectiles, partículas → globos → banner de caos → textos.
 - **Personajes:** `SKINS` en `characters.js`; el color del jugador es el de su personaje (`skinColor(p)`).
+- **Brazos (`arms.js`):** `drawArms` se llama en `drawSeat` después de la placa (encima, para que los gestos de la
+  mano derecha no queden tapados). La mano izquierda sostiene en abanico las cartas de acción (reemplazó a los
+  cuadritos morados). `gesture(pid, tipo)` se lanza desde `handleEvent`: `window`→`knock`/`double`, `stand`, `bet`,
+  `split`, `play`→`throw` (proyectil sale de la mano alzada) o `show`. En reposo, cada 3-9 s un gesto de espera al
+  azar (`drum`, `coin`, `scratch`, `cross`). Estado en `S.gestures`, `S.idleNext`, `S.idleLast`. `charBob` comparte el
+  balanceo del cuerpo con los hombros; las manos se quedan apoyadas.
 - **Diálogos:** `say(lineas, duración, vars, prioridad)` (0 charla, 1 normal, 2 momentos grandes; una frase
   de menor prioridad no pisa a otra reciente). `patron(lineas, dur, vars, lugar?)` habla desde la barra.
 - **Parroquianos (`npcs.js`):** `S.npcs[5]` (lugares x = 70, 94, 120, 146, 170), `S.walkers` (enterrador y
